@@ -1,0 +1,3556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Blox-ro - Baseplate Multiplayer Sandbox</title>
+    <style>
+        /* =====================================================================
+           1. DESIGN TOKENS & RESET (IMMEDIATE FIRST-PAINT STYLES)
+           ===================================================================== */
+        :root {
+            --bg-sky-top: #1d4ed8;
+            --bg-sky-mid: #38bdf8;
+            --bg-sky-low: #bae6fd;
+            --panel-bg: rgba(15, 23, 42, 0.92);
+            --panel-elevated: rgba(30, 41, 59, 0.94);
+            --panel-deep: rgba(2, 6, 23, 0.82);
+            --border-subtle: rgba(148, 163, 184, 0.26);
+            --border-strong: rgba(255, 255, 255, 0.18);
+            --text-primary: #f8fafc;
+            --text-secondary: #cbd5e1;
+            --text-muted: #94a3b8;
+            --accent-blue: #2563eb;
+            --accent-blue-hover: #3b82f6;
+            --accent-green: #16a34a;
+            --accent-green-hover: #22c55e;
+            --accent-indigo: #4f46e5;
+            --accent-indigo-hover: #6366f1;
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 18px;
+            --radius-xl: 24px;
+            --shadow-lg: 0 22px 50px rgba(0, 0, 0, 0.55);
+            --shadow-btn: 0 4px 0 rgba(0, 0, 0, 0.36);
+        }
+
+        *, *::before, *::after {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: linear-gradient(180deg, #0f172a 0%, #1e3a8a 45%, #38bdf8 100%);
+            color: var(--text-primary);
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+
+        .font-blox {
+            font-weight: 800;
+            letter-spacing: -0.02em;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        /* =====================================================================
+           2. 3D WEBGL CANVAS + 2D ISOMETRIC FALLBACK CANVAS & LABELS
+           ===================================================================== */
+        #game-canvas, #fallback-canvas {
+            position: fixed;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            display: block;
+            z-index: 1;
+        }
+
+        #fallback-canvas {
+            z-index: 2;
+        }
+
+        #labels-layer {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            overflow: hidden;
+            z-index: 6;
+        }
+
+        .nametag-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            transform: translate(-50%, -100%);
+            will-change: transform;
+        }
+
+        .player-tag {
+            background: rgba(15, 23, 42, 0.84);
+            border: 1px solid rgba(255, 255, 255, 0.24);
+            color: #ffffff;
+            font-size: 12px;
+            font-weight: 700;
+            padding: 2px 9px;
+            border-radius: 999px;
+            white-space: nowrap;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+        }
+
+        .chat-bubble {
+            background: #ffffff;
+            color: #0f172a;
+            font-size: 13px;
+            font-weight: 600;
+            padding: 6px 11px;
+            border-radius: 12px;
+            margin-bottom: 5px;
+            max-width: 230px;
+            text-align: center;
+            word-break: break-word;
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+            position: relative;
+        }
+
+        .chat-bubble::after {
+            content: "";
+            position: absolute;
+            bottom: -6px;
+            left: 50%;
+            transform: translateX(-50%);
+            border-width: 6px 6px 0;
+            border-style: solid;
+            border-color: #ffffff transparent transparent transparent;
+        }
+
+        /* =====================================================================
+           3. LOBBY & AVATAR CUSTOMIZER OVERLAY (VISIBLE ON FIRST PAINT)
+           ===================================================================== */
+        #lobby-screen {
+            position: fixed;
+            inset: 0;
+            z-index: 20;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            background: radial-gradient(circle at top right, rgba(37, 99, 235, 0.32), rgba(2, 6, 23, 0.62) 65%);
+            overflow-y: auto;
+        }
+
+        .lobby-card {
+            width: 100%;
+            max-width: 920px;
+            background: var(--panel-bg);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-xl);
+            box-shadow: var(--shadow-lg);
+            display: grid;
+            grid-template-columns: 1.06fr 0.94fr;
+            overflow: hidden;
+            max-height: calc(100vh - 32px);
+        }
+
+        .lobby-col {
+            padding: 22px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .lobby-col-left {
+            border-right: 1px solid var(--border-subtle);
+        }
+
+        .brand-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .brand-logo-box {
+            width: 38px;
+            height: 38px;
+            border-radius: 10px;
+            background: #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transform: rotate(-6deg);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+            flex-shrink: 0;
+        }
+
+        .brand-logo-inner {
+            width: 15px;
+            height: 15px;
+            background: #0f172a;
+            border-radius: 3px;
+        }
+
+        .status-badge {
+            margin-left: auto;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 10px;
+            border-radius: 999px;
+            font-size: 11.5px;
+            font-weight: 700;
+            border: 1px solid transparent;
+            white-space: nowrap;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .status-ready {
+            background: rgba(34, 197, 94, 0.18);
+            color: #86efac;
+            border-color: rgba(34, 197, 94, 0.38);
+        }
+        .status-ready .status-dot { background: #4ade80; }
+
+        .status-connecting {
+            background: rgba(245, 158, 11, 0.18);
+            color: #fcd34d;
+            border-color: rgba(245, 158, 11, 0.38);
+        }
+        .status-connecting .status-dot {
+            background: #fbbf24;
+            animation: pulseDot 1.1s infinite ease-in-out;
+        }
+
+        .status-local {
+            background: rgba(56, 189, 248, 0.18);
+            color: #7dd3fc;
+            border-color: rgba(56, 189, 248, 0.38);
+        }
+        .status-local .status-dot { background: #38bdf8; }
+
+        @keyframes pulseDot {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.35); opacity: 0.55; }
+        }
+
+        .section-box {
+            background: var(--panel-deep);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md);
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 9px;
+        }
+
+        .section-label {
+            font-size: 11px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+        .input-field {
+            width: 100%;
+            padding: 9px 11px;
+            border-radius: var(--radius-sm);
+            border: 1px solid rgba(148, 163, 184, 0.32);
+            background: rgba(15, 23, 42, 0.95);
+            color: #ffffff;
+            font-size: 13px;
+            font-weight: 600;
+            outline: none;
+            transition: border-color 0.14s ease;
+        }
+
+        .input-field:focus {
+            border-color: #60a5fa;
+        }
+
+        .input-mono {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.16);
+            border-radius: var(--radius-sm);
+            font-weight: 700;
+            font-size: 12px;
+            color: #ffffff;
+            cursor: pointer;
+            transition: transform 0.08s ease, background 0.14s ease, filter 0.14s ease;
+            white-space: nowrap;
+        }
+
+        .btn:active {
+            transform: translateY(2px);
+        }
+
+        .btn-sm {
+            padding: 6px 10px;
+            font-size: 11.5px;
+        }
+
+        .btn-slate { background: #334155; }
+        .btn-slate:hover { background: #475569; }
+
+        .btn-indigo { background: var(--accent-indigo); }
+        .btn-indigo:hover { background: var(--accent-indigo-hover); }
+
+        .btn-blue { background: var(--accent-blue); }
+        .btn-blue:hover { background: var(--accent-blue-hover); }
+
+        .btn-emerald { background: #059669; }
+        .btn-emerald:hover { background: #10b981; }
+
+        .btn-play {
+            width: 100%;
+            padding: 15px 18px;
+            border-radius: var(--radius-md);
+            background: linear-gradient(180deg, #22c55e 0%, #16a34a 100%);
+            border: 1px solid rgba(187, 247, 208, 0.42);
+            box-shadow: 0 5px 0 #14532d, 0 12px 24px rgba(22, 163, 74, 0.38);
+            font-size: 17px;
+            font-weight: 800;
+            letter-spacing: 0.01em;
+        }
+
+        .btn-play:hover {
+            filter: brightness(1.06);
+        }
+
+        .btn-play:active {
+            transform: translateY(3px);
+            box-shadow: 0 2px 0 #14532d;
+        }
+
+        .thumb-banner {
+            position: relative;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border-subtle);
+            overflow: hidden;
+            aspect-ratio: 16 / 9;
+            max-height: 154px;
+            width: 100%;
+            background: linear-gradient(180deg, #38bdf8 0%, #bae6fd 100%);
+        }
+
+        .thumb-badge {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            background: rgba(15, 23, 42, 0.85);
+            border: 1px solid rgba(255, 255, 255, 0.22);
+            color: #ffffff;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 3px 9px;
+            border-radius: 999px;
+        }
+
+        .swatch-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .swatch-btn {
+            width: 28px;
+            height: 28px;
+            border-radius: 8px;
+            border: 2px solid rgba(255, 255, 255, 0.18);
+            cursor: pointer;
+            transition: transform 0.12s ease, border-color 0.12s ease;
+        }
+
+        .swatch-btn:hover { transform: scale(1.08); }
+        .swatch-btn.selected {
+            border-color: #ffffff;
+            transform: scale(1.12);
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.75);
+        }
+
+        .preset-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 6px;
+        }
+
+        .controls-summary {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 6px;
+            font-size: 11.5px;
+            color: var(--text-secondary);
+        }
+
+        .kbd-chip {
+            display: inline-block;
+            background: #1e293b;
+            border: 1px solid rgba(148, 163, 184, 0.35);
+            color: #ffffff;
+            font-size: 10.5px;
+            font-weight: 700;
+            padding: 1px 6px;
+            border-radius: 5px;
+            margin-right: 4px;
+        }
+
+        /* =====================================================================
+           4. IN-GAME HUD & "SERVER CREATED • INVITE FRIENDS" BANNER
+           ===================================================================== */
+        #game-hud {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .hud-interactive { pointer-events: auto; }
+
+        .hud-panel {
+            background: var(--panel-bg);
+            border: 1px solid var(--border-subtle);
+            color: var(--text-primary);
+        }
+
+        .top-left-bar {
+            position: fixed;
+            top: 12px;
+            left: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            max-width: calc(100vw - 240px);
+        }
+
+        .icon-square-btn {
+            width: 38px;
+            height: 38px;
+            border-radius: 11px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            cursor: pointer;
+            box-shadow: var(--shadow-btn);
+        }
+
+        .icon-square-btn:hover { background: rgba(30, 41, 59, 0.96); }
+
+        .pill-btn {
+            height: 38px;
+            padding: 0 12px;
+            border-radius: 11px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: var(--shadow-btn);
+        }
+
+        .pill-btn:hover { background: rgba(30, 41, 59, 0.96); }
+
+        /* Prominent Server Created • Invite Friends Card */
+        .invite-card {
+            position: fixed;
+            top: 58px;
+            left: 12px;
+            width: min(350px, calc(100vw - 24px));
+            background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(30, 58, 138, 0.92));
+            border: 1px solid rgba(96, 165, 250, 0.45);
+            border-radius: var(--radius-md);
+            padding: 11px 13px;
+            box-shadow: var(--shadow-lg);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .invite-card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+        .invite-code-pill {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 15px;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            color: #fef08a;
+            background: rgba(2, 6, 23, 0.72);
+            border: 1px solid rgba(250, 204, 21, 0.4);
+            padding: 4px 10px;
+            border-radius: 8px;
+            user-select: text;
+        }
+
+        .chat-box {
+            position: fixed;
+            top: 166px;
+            left: 12px;
+            width: min(320px, calc(100vw - 24px));
+            border-radius: var(--radius-md);
+            overflow: hidden;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .chat-box.compact-top {
+            top: 58px;
+        }
+
+        .chat-messages {
+            height: 120px;
+            overflow-y: auto;
+            padding: 9px 11px;
+            font-size: 12px;
+            line-height: 1.45;
+            background: rgba(2, 6, 23, 0.65);
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .chat-form {
+            display: flex;
+            border-top: 1px solid rgba(255, 255, 255, 0.12);
+            background: rgba(15, 23, 42, 0.94);
+        }
+
+        .chat-input {
+            flex: 1;
+            min-width: 0;
+            background: transparent;
+            border: none;
+            color: #ffffff;
+            font-size: 12px;
+            padding: 8px 10px;
+            outline: none;
+        }
+
+        .chat-send-btn {
+            background: var(--accent-blue);
+            color: #ffffff;
+            border: none;
+            padding: 0 12px;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .leaderboard-box {
+            position: fixed;
+            top: 12px;
+            right: 12px;
+            width: 215px;
+            border-radius: var(--radius-md);
+            overflow: hidden;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .leaderboard-header {
+            padding: 8px 11px;
+            background: rgba(2, 6, 23, 0.55);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 11px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-secondary);
+        }
+
+        .leaderboard-list {
+            max-height: 185px;
+            overflow-y: auto;
+        }
+
+        .leaderboard-row {
+            padding: 6px 11px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            font-size: 12px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .tool-hint {
+            position: fixed;
+            bottom: 96px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 6px 14px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 700;
+            color: #7dd3fc;
+            box-shadow: var(--shadow-lg);
+            white-space: nowrap;
+        }
+
+        .build-color-bar {
+            position: fixed;
+            bottom: 134px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 7px 11px;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .hotbar {
+            position: fixed;
+            bottom: 14px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            max-width: calc(100vw - 16px);
+            overflow-x: auto;
+            padding: 4px;
+        }
+
+        .hotbar-slot {
+            position: relative;
+            width: 58px;
+            height: 62px;
+            border-radius: 13px;
+            background: rgba(15, 23, 42, 0.88);
+            border: 2px solid rgba(255, 255, 255, 0.18);
+            color: #ffffff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            flex-shrink: 0;
+            box-shadow: var(--shadow-btn);
+            transition: transform 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+        }
+
+        .hotbar-slot:hover {
+            transform: translateY(-2px);
+            border-color: rgba(255, 255, 255, 0.42);
+        }
+
+        .hotbar-slot.active {
+            border-color: #38bdf8;
+            background: rgba(14, 165, 233, 0.32);
+            transform: translateY(-5px);
+            box-shadow: 0 8px 18px rgba(14, 165, 233, 0.35);
+        }
+
+        .hotbar-num {
+            position: absolute;
+            top: 4px;
+            left: 6px;
+            font-size: 10px;
+            font-weight: 800;
+            color: var(--text-muted);
+        }
+
+        .hotbar-icon { font-size: 19px; line-height: 1.1; }
+        .hotbar-label { font-size: 10px; font-weight: 700; color: var(--text-secondary); margin-top: 2px; }
+
+        /* Touch Controls */
+        #mobile-controls { display: none; }
+        #joystick-zone {
+            position: fixed;
+            bottom: 92px;
+            left: 20px;
+            width: 112px;
+            height: 112px;
+            border-radius: 50%;
+            background: rgba(15, 23, 42, 0.52);
+            border: 2px solid rgba(255, 255, 255, 0.28);
+            touch-action: none;
+        }
+        #joystick-knob {
+            position: absolute;
+            top: 34px;
+            left: 34px;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.88);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+            pointer-events: none;
+        }
+        #mobile-jump-btn {
+            position: fixed;
+            bottom: 104px;
+            right: 22px;
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            background: rgba(15, 23, 42, 0.72);
+            border: 2px solid rgba(255, 255, 255, 0.38);
+            color: #ffffff;
+            font-size: 12px;
+            font-weight: 800;
+            cursor: pointer;
+            touch-action: none;
+        }
+
+        /* =====================================================================
+           5. MODALS (SELF-HOST SERVER / JOIN ROOM)
+           ===================================================================== */
+        .modal-backdrop {
+            position: fixed;
+            inset: 0;
+            z-index: 35;
+            background: rgba(2, 6, 23, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+        }
+
+        .modal-card {
+            width: 100%;
+            max-width: 660px;
+            max-height: calc(100vh - 32px);
+            overflow-y: auto;
+            background: #0f172a;
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-lg);
+            padding: 20px;
+            box-shadow: var(--shadow-lg);
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .code-preview {
+            background: #020617;
+            border: 1px solid rgba(148, 163, 184, 0.25);
+            border-radius: var(--radius-md);
+            padding: 12px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 11.5px;
+            line-height: 1.5;
+            color: #e2e8f0;
+            white-space: pre;
+            overflow-x: auto;
+            max-height: 240px;
+            user-select: text;
+        }
+
+        @media (hover: none) and (pointer: coarse) {
+            #mobile-controls { display: block; }
+        }
+
+        @media (max-width: 820px) {
+            .lobby-card {
+                grid-template-columns: 1fr;
+                max-height: calc(100vh - 20px);
+            }
+            .lobby-col-left {
+                border-right: none;
+                border-bottom: 1px solid var(--border-subtle);
+            }
+            .top-left-bar { max-width: calc(100vw - 24px); }
+            .leaderboard-box {
+                top: auto;
+                bottom: 88px;
+                right: 10px;
+                width: 162px;
+            }
+            .invite-card { top: 100px; }
+            .chat-box { top: 210px; width: min(260px, calc(100vw - 20px)); }
+            .chat-box.compact-top { top: 100px; }
+            .chat-messages { height: 84px; }
+            .hotbar-slot { width: 50px; height: 56px; }
+        }
+    </style>
+</head>
+<body>
+    <!-- 3D WebGL Canvas & Automatic 2D Isometric Blocky Fallback Canvas -->
+    <canvas id="game-canvas"></canvas>
+    <canvas id="fallback-canvas" class="hidden"></canvas>
+
+    <!-- Floating Overhead Nametags & 3D Chat Bubbles -->
+    <div id="labels-layer"></div>
+
+    <!-- =====================================================================
+         LOBBY & ONE-CLICK SERVER CREATOR OVERLAY
+         ===================================================================== -->
+    <div id="lobby-screen">
+        <div class="lobby-card">
+            <!-- Left Column: Brand, Thumbnail, One-Click Play/Create Server & Friend Join -->
+            <div class="lobby-col lobby-col-left">
+                <div class="brand-row">
+                    <div class="brand-logo-box" aria-hidden="true">
+                        <div class="brand-logo-inner"></div>
+                    </div>
+                    <span class="font-blox" style="font-size: 28px;">BLOX-RO</span>
+                    <span id="server-badge" class="status-badge status-ready">
+                        <span class="status-dot"></span>
+                        <span id="server-status-text">Instant Server Ready</span>
+                    </span>
+                </div>
+
+                <!-- Baseplate Experience Thumbnail -->
+                <div class="thumb-banner">
+                    <svg viewBox="0 0 640 360" width="100%" height="100%" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <linearGradient id="skyGrad" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stop-color="#38bdf8" />
+                                <stop offset="100%" stop-color="#e0f2fe" />
+                            </linearGradient>
+                            <linearGradient id="plateGrad" x1="0" y1="0" x2="1" y2="1">
+                                <stop offset="0%" stop-color="#9ca3af" />
+                                <stop offset="100%" stop-color="#6b7280" />
+                            </linearGradient>
+                        </defs>
+                        <rect width="640" height="360" fill="url(#skyGrad)" />
+                        <circle cx="530" cy="72" r="34" fill="#fef08a" opacity="0.92" />
+                        <polygon points="0,255 320,175 640,255 320,348" fill="url(#plateGrad)" stroke="#4b5563" stroke-width="3" />
+                        <polygon points="265,246 320,232 375,246 320,262" fill="#475569" stroke="#f8fafc" stroke-width="2" />
+                        <!-- Rainbow Obby Steps -->
+                        <polygon points="410,215 432,210 432,222 410,227" fill="#ef4444" />
+                        <polygon points="438,204 460,199 460,213 438,218" fill="#f97316" />
+                        <polygon points="466,192 488,187 488,203 466,208" fill="#eab308" />
+                        <polygon points="494,179 518,173 518,191 494,197" fill="#22c55e" />
+                        <polygon points="524,165 552,158 552,178 524,185" fill="#fbbf24" />
+                        <!-- Stylized R6 Character -->
+                        <rect x="296" y="156" width="24" height="24" rx="4" fill="#facc15" stroke="#0f172a" stroke-width="2" />
+                        <circle cx="304" cy="166" r="2.5" fill="#0f172a" />
+                        <circle cx="314" cy="166" r="2.5" fill="#0f172a" />
+                        <path d="M303 173 Q309 178 315 173" stroke="#0f172a" stroke-width="2" fill="none" stroke-linecap="round" />
+                        <rect x="290" y="182" width="36" height="36" rx="4" fill="#2563eb" stroke="#0f172a" stroke-width="2" />
+                        <rect x="276" y="184" width="12" height="32" rx="3" fill="#facc15" stroke="#0f172a" stroke-width="2" />
+                        <rect x="328" y="184" width="12" height="32" rx="3" fill="#facc15" stroke="#0f172a" stroke-width="2" />
+                        <rect x="291" y="220" width="16" height="32" rx="3" fill="#65a30d" stroke="#0f172a" stroke-width="2" />
+                        <rect x="309" y="220" width="16" height="32" rx="3" fill="#65a30d" stroke="#0f172a" stroke-width="2" />
+                    </svg>
+                    <span class="thumb-badge">EXPERIENCE #01 • BASEPLATE</span>
+                </div>
+
+                <div>
+                    <h1 class="font-blox" style="margin: 0 0 4px; font-size: 24px;">Baseplate</h1>
+                    <p style="margin: 0; font-size: 12.5px; line-height: 1.48; color: var(--text-secondary);">
+                        Click <strong>Play Baseplate</strong> to instantly spin up your own multiplayer server with a shareable room code, or enter a friend's code below to join theirs!
+                    </p>
+                </div>
+
+                <!-- Primary One-Click Server Create / Join Button -->
+                <button type="button" id="play-btn" class="btn btn-play">Play Baseplate</button>
+
+                <!-- Friend Code Join & Advanced Self-Host -->
+                <div class="section-box">
+                    <div class="section-label">
+                        <span>Have a Friend's Code? Join Server</span>
+                        <button type="button" id="open-host-modal-btn" class="btn btn-sm btn-slate">Advanced / Self-Host</button>
+                    </div>
+                    <div style="display: flex; gap: 6px; align-items: center;">
+                        <input id="friend-code-input" type="text" maxlength="16" class="input-field input-mono" placeholder="e.g. BLX-4829" aria-label="Friend Server Code" />
+                        <button type="button" id="join-code-btn" class="btn btn-sm btn-blue" style="padding: 9px 14px;">Join Code</button>
+                    </div>
+                    <div id="lobby-feedback" style="font-size: 11.5px; color: #93c5fd; font-weight: 600;">
+                        One click creates your server, gives you a shareable code, and drops you right in.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Display Name, R6 Avatar Customizer, Bots & Controls -->
+            <div class="lobby-col">
+                <div class="section-box">
+                    <div class="section-label">
+                        <span>Display Name</span>
+                        <span>Renderer: <strong id="renderer-mode-label" style="color: #86efac;">3D WebGL</strong></span>
+                    </div>
+                    <input id="username-input" type="text" maxlength="20" class="input-field" placeholder="Enter your display name..." />
+                </div>
+
+                <div class="section-box">
+                    <div class="section-label">
+                        <span>Avatar Customizer (R6)</span>
+                        <div style="display: flex; gap: 5px;">
+                            <button type="button" id="lobby-add-bot-btn" class="btn btn-sm btn-emerald">+ Bot</button>
+                            <button type="button" id="lobby-clear-bots-btn" class="btn btn-sm btn-slate hidden">Clear Bots</button>
+                        </div>
+                    </div>
+
+                    <div class="preset-row">
+                        <button type="button" class="btn btn-sm btn-slate preset-btn" data-preset="noob">Classic Noob</button>
+                        <button type="button" class="btn btn-sm btn-slate preset-btn" data-preset="guest">Retro Guest</button>
+                        <button type="button" class="btn btn-sm btn-slate preset-btn" data-preset="builder">Builderman</button>
+                    </div>
+
+                    <div>
+                        <div style="font-size: 11px; color: var(--text-muted); font-weight: 700; margin-bottom: 5px;">Skin Color</div>
+                        <div id="skin-colors" class="swatch-row"></div>
+                    </div>
+
+                    <div>
+                        <div style="font-size: 11px; color: var(--text-muted); font-weight: 700; margin-bottom: 5px;">Shirt Color</div>
+                        <div id="shirt-colors" class="swatch-row"></div>
+                    </div>
+
+                    <div>
+                        <div style="font-size: 11px; color: var(--text-muted); font-weight: 700; margin-bottom: 5px;">Pants Color</div>
+                        <div id="pants-colors" class="swatch-row"></div>
+                    </div>
+                </div>
+
+                <div class="section-box">
+                    <div class="section-label">
+                        <span>Controls &amp; Emotes</span>
+                    </div>
+                    <div class="controls-summary">
+                        <div><span class="kbd-chip">WASD / Arrows</span>Move</div>
+                        <div><span class="kbd-chip">Space</span>Jump</div>
+                        <div><span class="kbd-chip">Drag / Right-Drag</span>Orbit Camera</div>
+                        <div><span class="kbd-chip">Scroll</span>Zoom</div>
+                        <div><span class="kbd-chip">1 / 2 / 3</span>Move / Build / Delete</div>
+                        <div><span class="kbd-chip">/e dance</span>Wave, Cheer, Respawn (R)</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- =====================================================================
+         IN-GAME HUD
+         ===================================================================== -->
+    <div id="game-hud" class="hidden">
+        <!-- Top-Left Quick Actions -->
+        <div class="top-left-bar hud-interactive">
+            <button type="button" id="menu-btn" class="hud-panel icon-square-btn" title="Lobby &amp; Avatar">☰</button>
+            <button type="button" id="respawn-btn" class="hud-panel icon-square-btn" title="Respawn (Key R)">↻</button>
+            <button type="button" id="chat-toggle-btn" class="hud-panel icon-square-btn" title="Toggle Chat">💬</button>
+
+            <button type="button" id="hud-server-pill" class="hud-panel pill-btn" title="Toggle Server Invite Card">
+                <span id="hud-status-dot" class="status-dot" style="background: #4ade80;"></span>
+                <span id="hud-server-status-text">Server Live • Code: BLX-0000 (1)</span>
+            </button>
+
+            <button type="button" id="hud-add-bot-btn" class="hud-panel pill-btn" style="color: #7dd3fc;">+ Bot</button>
+            <button type="button" id="hud-clear-bots-btn" class="hud-panel pill-btn hidden" style="color: #fca5a5;">Clear Bots</button>
+        </div>
+
+        <!-- Prominent "Server Created • Invite Friends" HUD Card -->
+        <div id="invite-card" class="invite-card hud-interactive">
+            <div class="invite-card-header">
+                <div style="display: flex; align-items: center; gap: 6px;">
+                    <span class="status-dot" style="background: #4ade80;"></span>
+                    <span id="invite-card-title" style="font-size: 12.5px; font-weight: 800; color: #ffffff;">Server Created • Invite Friends</span>
+                </div>
+                <button type="button" id="close-invite-card-btn" class="btn btn-sm btn-slate" style="padding: 2px 7px;">Hide</button>
+            </div>
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;">
+                <span id="hud-room-code-display" class="invite-code-pill">BLX-0000</span>
+                <div style="display: flex; gap: 6px;">
+                    <button type="button" id="hud-copy-code-btn" class="btn btn-sm btn-blue">Copy Code</button>
+                    <button type="button" id="hud-copy-link-btn" class="btn btn-sm btn-indigo">Copy Invite Link</button>
+                </div>
+            </div>
+            <div id="invite-card-feedback" style="font-size: 11px; color: #bae6fd; font-weight: 600;">
+                Share this code or link so friends drop right into your Baseplate server!
+            </div>
+        </div>
+
+        <!-- Chat Box -->
+        <div id="chat-panel" class="chat-box hud-panel hud-interactive">
+            <div id="chat-messages" class="chat-messages">
+                <div style="color: #fcd34d; font-weight: 600;">[System] Welcome to Baseplate! Type /e dance, /e wave, or /e cheer.</div>
+            </div>
+            <form id="chat-form" class="chat-form">
+                <input id="chat-input" type="text" maxlength="140" class="chat-input" placeholder="Press '/' or click to chat..." autocomplete="off" />
+                <button type="submit" class="chat-send-btn">Send</button>
+            </form>
+        </div>
+
+        <!-- Top-Right Leaderboard -->
+        <div class="leaderboard-box hud-panel hud-interactive">
+            <div class="leaderboard-header">
+                <span>Players</span>
+                <span id="player-count-badge" style="color: #86efac; background: rgba(34,197,94,0.16); padding: 1px 6px; border-radius: 6px;">1</span>
+            </div>
+            <div id="leaderboard-list" class="leaderboard-list"></div>
+        </div>
+
+        <!-- Build Color Picker (Slot 2 Build) -->
+        <div id="build-color-bar" class="build-color-bar hud-panel hud-interactive hidden">
+            <span style="font-size: 11px; font-weight: 700; color: var(--text-secondary);">Brick:</span>
+            <button type="button" class="swatch-btn bcolor-btn selected" data-bcolor="#ef4444" style="width: 22px; height: 22px; background: #ef4444;"></button>
+            <button type="button" class="swatch-btn bcolor-btn" data-bcolor="#3b82f6" style="width: 22px; height: 22px; background: #3b82f6;"></button>
+            <button type="button" class="swatch-btn bcolor-btn" data-bcolor="#22c55e" style="width: 22px; height: 22px; background: #22c55e;"></button>
+            <button type="button" class="swatch-btn bcolor-btn" data-bcolor="#eab308" style="width: 22px; height: 22px; background: #eab308;"></button>
+            <button type="button" class="swatch-btn bcolor-btn" data-bcolor="#a855f7" style="width: 22px; height: 22px; background: #a855f7;"></button>
+            <button type="button" class="swatch-btn bcolor-btn" data-bcolor="#f8fafc" style="width: 22px; height: 22px; background: #f8fafc;"></button>
+        </div>
+
+        <!-- Tool Hint Pill -->
+        <div id="tool-hint" class="tool-hint hud-panel hidden"></div>
+
+        <!-- Bottom Hotbar -->
+        <div class="hotbar hud-interactive">
+            <button type="button" class="hotbar-slot active" data-slot="1" title="Move / Inspect (Key 1)">
+                <span class="hotbar-num">1</span>
+                <span class="hotbar-icon">🖐️</span>
+                <span class="hotbar-label">Move</span>
+            </button>
+            <button type="button" class="hotbar-slot" data-slot="2" title="Place Brick (Key 2)">
+                <span class="hotbar-num">2</span>
+                <span class="hotbar-icon">🧱</span>
+                <span class="hotbar-label">Build</span>
+            </button>
+            <button type="button" class="hotbar-slot" data-slot="3" title="Delete Brick (Key 3)">
+                <span class="hotbar-num">3</span>
+                <span class="hotbar-icon">🔨</span>
+                <span class="hotbar-label">Delete</span>
+            </button>
+            <button type="button" class="hotbar-slot" data-slot="4" title="Emote: Dance">
+                <span class="hotbar-num">4</span>
+                <span class="hotbar-icon">🕺</span>
+                <span class="hotbar-label">Dance</span>
+            </button>
+            <button type="button" class="hotbar-slot" data-slot="5" title="Emote: Wave">
+                <span class="hotbar-num">5</span>
+                <span class="hotbar-icon">👋</span>
+                <span class="hotbar-label">Wave</span>
+            </button>
+            <button type="button" class="hotbar-slot" data-slot="6" title="Emote: Cheer">
+                <span class="hotbar-num">6</span>
+                <span class="hotbar-icon">🙌</span>
+                <span class="hotbar-label">Cheer</span>
+            </button>
+        </div>
+
+        <!-- Touch Joystick & Jump Button -->
+        <div id="mobile-controls" class="hud-interactive">
+            <div id="joystick-zone">
+                <div id="joystick-knob"></div>
+            </div>
+            <button type="button" id="mobile-jump-btn">JUMP</button>
+        </div>
+    </div>
+
+    <!-- =====================================================================
+         ADVANCED / SELF-HOST SERVER MODAL
+         ===================================================================== -->
+    <div id="host-modal" class="modal-backdrop hidden">
+        <div class="modal-card">
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+                <h2 class="font-blox" style="margin: 0; font-size: 20px;">Advanced / Custom WebSocket Server</h2>
+                <button type="button" id="close-host-modal-btn" class="btn btn-sm btn-slate">Close</button>
+            </div>
+            <p style="margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--text-secondary);">
+                By default, Blox-ro connects via BroadcastChannel + public WSS relays with zero setup. If you want to connect to your own Node.js WebSocket server, enter its URL below or download <code style="color: #7dd3fc;">server.js</code>.
+            </p>
+            <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                <input id="custom-ws-input" type="text" class="input-field" style="flex: 1; min-width: 210px;" placeholder="ws://localhost:8080 or wss://your-server.com" />
+                <button type="button" id="connect-custom-ws-btn" class="btn btn-sm btn-blue">Use Custom WS</button>
+                <button type="button" id="reset-default-relay-btn" class="btn btn-sm btn-slate">Use Built-in Relay</button>
+            </div>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <button type="button" id="copy-server-code-btn" class="btn btn-sm btn-indigo">Copy server.js</button>
+                <button type="button" id="download-server-code-btn" class="btn btn-sm btn-emerald">Download server.js</button>
+                <span id="host-copy-feedback" style="font-size: 12px; color: #86efac; font-weight: 600; align-self: center;"></span>
+            </div>
+            <pre id="server-script-pre" class="code-preview"></pre>
+        </div>
+    </div>
+
+    <script>
+        // =====================================================================
+        // 0. GLOBAL SAFETY GUARDS (NEVER LET ASYNC ERRORS BREAK RENDERING)
+        // =====================================================================
+        window.addEventListener("error", (ev) => {
+            console.warn("Caught runtime error:", ev.message);
+        });
+        window.addEventListener("unhandledrejection", (ev) => {
+            ev.preventDefault();
+            console.warn("Caught async rejection:", ev.reason);
+        });
+
+        // =====================================================================
+        // 1. REFERENCE NODE.JS + WS SERVER SCRIPT FOR SELF-HOST MODAL
+        // =====================================================================
+        const NODE_WS_SERVER_CODE = [
+            "const WebSocket = require('ws');",
+            "const PORT = process.env.PORT || 8080;",
+            "const wss = new WebSocket.Server({ port: PORT });",
+            "const rooms = new Map();",
+            "const worldBlocks = new Map();",
+            "",
+            "function getSet(map, key, factory) {",
+            "  if (!map.has(key)) map.set(key, factory());",
+            "  return map.get(key);",
+            "}",
+            "",
+            "function broadcast(room, obj, exclude = null) {",
+            "  const clients = rooms.get(room);",
+            "  if (!clients) return;",
+            "  const raw = JSON.stringify(obj);",
+            "  for (const c of clients) {",
+            "    if (c !== exclude && c.ws.readyState === WebSocket.OPEN) c.ws.send(raw);",
+            "  }",
+            "}",
+            "",
+            "wss.on('connection', (ws) => {",
+            "  const meta = { ws, uid: null, username: 'Player', room: 'BLX-0000' };",
+            "  ws.on('message', (buf) => {",
+            "    let pkt;",
+            "    try { pkt = JSON.parse(buf.toString()); } catch (e) { return; }",
+            "    if (!pkt || typeof pkt !== 'object') return;",
+            "    const room = String(pkt.room || meta.room).toUpperCase().slice(0, 16);",
+            "    if (meta.room !== room && rooms.has(meta.room)) rooms.get(meta.room).delete(meta);",
+            "    meta.room = room;",
+            "    if (pkt.uid) meta.uid = pkt.uid;",
+            "    if (pkt.username) meta.username = pkt.username;",
+            "    getSet(rooms, room, () => new Set()).add(meta);",
+            "",
+            "    if (pkt.type === 'join' || pkt.type === 'sync_world_request') {",
+            "      const blocks = Array.from(getSet(worldBlocks, room, () => new Map()).values());",
+            "      if (blocks.length > 0 && ws.readyState === WebSocket.OPEN) {",
+            "        ws.send(JSON.stringify({ type: 'sync_world_state', room, blocks }));",
+            "      }",
+            "    }",
+            "    if (pkt.type === 'place_block' && pkt.blockId) {",
+            "      getSet(worldBlocks, room, () => new Map()).set(pkt.blockId, {",
+            "        id: pkt.blockId, x: pkt.x, y: pkt.y, z: pkt.z, color: pkt.color",
+            "      });",
+            "    } else if (pkt.type === 'delete_block' && pkt.blockId) {",
+            "      getSet(worldBlocks, room, () => new Map()).delete(pkt.blockId);",
+            "    }",
+            "    broadcast(room, { ...pkt, room }, meta);",
+            "  });",
+            "  ws.on('close', () => {",
+            "    if (rooms.has(meta.room)) {",
+            "      rooms.get(meta.room).delete(meta);",
+            "      if (meta.uid) broadcast(meta.room, { type: 'leave', uid: meta.uid, username: meta.username, room: meta.room }, meta);",
+            "    }",
+            "  });",
+            "});",
+            "console.log('Blox-ro WebSocket server listening on port ' + PORT);"
+        ].join("\n");
+
+        document.getElementById("server-script-pre").textContent = NODE_WS_SERVER_CODE;
+
+        // =====================================================================
+        // 2. NON-BLOCKING ASYNC SCRIPT LOADER (THREE.JS & MQTT.JS)
+        // =====================================================================
+        function loadScriptNonBlocking(urls, timeoutMs = 4500) {
+            return new Promise((resolve) => {
+                let idx = 0;
+                function tryNext() {
+                    if (idx >= urls.length) {
+                        resolve(false);
+                        return;
+                    }
+                    const src = urls[idx++];
+                    let done = false;
+                    const script = document.createElement("script");
+                    script.src = src;
+                    script.async = true;
+
+                    const timer = setTimeout(() => {
+                        if (done) return;
+                        done = true;
+                        script.remove();
+                        tryNext();
+                    }, timeoutMs);
+
+                    script.onload = () => {
+                        if (done) return;
+                        done = true;
+                        clearTimeout(timer);
+                        resolve(true);
+                    };
+
+                    script.onerror = () => {
+                        if (done) return;
+                        done = true;
+                        clearTimeout(timer);
+                        script.remove();
+                        tryNext();
+                    };
+
+                    document.head.appendChild(script);
+                }
+                tryNext();
+            });
+        }
+
+        // =====================================================================
+        // 3. LIGHTWEIGHT WEB AUDIO RETRO SFX (ZERO EXTERNAL DEPENDENCIES)
+        // =====================================================================
+        const SoundFX = {
+            ctx: null,
+            unlock() {
+                if (this.ctx) {
+                    if (this.ctx.state === "suspended") {
+                        try { this.ctx.resume(); } catch (e) {}
+                    }
+                    return;
+                }
+                try {
+                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    if (AudioCtx) this.ctx = new AudioCtx();
+                } catch (e) {}
+            },
+            tone(freqs, dur = 0.09, type = "triangle", gainVal = 0.06) {
+                if (!this.ctx) return;
+                try {
+                    const now = this.ctx.currentTime;
+                    freqs.forEach((f, i) => {
+                        const osc = this.ctx.createOscillator();
+                        const gain = this.ctx.createGain();
+                        osc.type = type;
+                        osc.frequency.setValueAtTime(f, now + i * 0.035);
+                        gain.gain.setValueAtTime(gainVal, now + i * 0.035);
+                        gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.035 + dur);
+                        osc.connect(gain);
+                        gain.connect(this.ctx.destination);
+                        osc.start(now + i * 0.035);
+                        osc.stop(now + i * 0.035 + dur);
+                    });
+                } catch (e) {}
+            },
+            playJump() { this.tone([320, 520], 0.11); },
+            playBoing() { this.tone([380, 620, 880], 0.14); },
+            playOof() { this.tone([210, 145, 95], 0.18, "sawtooth", 0.08); },
+            playBuild() { this.tone([440, 660], 0.07); },
+            playDelete() { this.tone([360, 220], 0.07); },
+            playClick() { this.tone([620], 0.05); }
+        };
+
+        // =====================================================================
+        // 4. APPLICATION STATE & URL INVITE CODE DETECTION
+        // =====================================================================
+        const SKIN_PALETTE = ["#facc15", "#fde047", "#f5d0a9", "#e0ac69", "#8d5524", "#e2e8f0"];
+        const SHIRT_PALETTE = ["#2563eb", "#ef4444", "#10b981", "#1e293b", "#f97316", "#8b5cf6"];
+        const PANTS_PALETTE = ["#65a30d", "#1e3a8a", "#1f2937", "#78350f", "#475569", "#dc2626"];
+
+        function generateRoomCode() {
+            return "BLX-" + Math.floor(1000 + Math.random() * 9000);
+        }
+
+        function parseInviteParams() {
+            let inviteRoom = "";
+            let customWs = "";
+            try {
+                const params = new URLSearchParams(window.location.search);
+                const r = params.get("room");
+                const w = params.get("ws");
+                if (r && r.trim()) inviteRoom = r.trim().toUpperCase().replace(/[^A-Z0-9-]/g, "").slice(0, 16);
+                if (w && w.trim()) customWs = w.trim();
+            } catch (e) {}
+            return { inviteRoom, customWs };
+        }
+
+        const parsedInvite = parseInviteParams();
+
+        const state = {
+            inGame: false,
+            renderMode: "2d", // Automatically upgrades to "3d" once Three.js + WebGL initialize
+            userId: "plr_" + Math.random().toString(36).slice(2, 9) + "_" + Math.random().toString(36).slice(2, 5),
+            username: "BloxPlayer" + Math.floor(100 + Math.random() * 899),
+            roomCode: parsedInvite.inviteRoom || generateRoomCode(),
+            invitedRoomCode: parsedInvite.inviteRoom || "",
+            isHostCreator: !parsedInvite.inviteRoom,
+            customWsUrl: parsedInvite.customWs || "",
+            avatar: {
+                skin: "#facc15",
+                shirt: "#2563eb",
+                pants: "#65a30d"
+            },
+            activeSlot: 1,
+            buildColor: "#ef4444",
+            currentEmote: null,
+            emoteTimer: 0,
+            lastChatBubble: "",
+            lastChatTime: 0,
+            players: new Map(),
+            blocks: new Map(),
+            particles: []
+        };
+
+        // =====================================================================
+        // 5. WORLD COLLIDERS & PHYSICS (SHARED BY BOTH 3D WEBGL AND 2D FALLBACK)
+        // =====================================================================
+        const worldColliders = [];
+        const landmarks = []; // Used by 2D isometric fallback renderer
+
+        const physics = {
+            pos: { x: 0, y: 0.5, z: 0 },
+            vel: { x: 0, y: 0, z: 0 },
+            yaw: 0,
+            grounded: true,
+            animState: "idle"
+        };
+
+        // Pre-populate static Baseplate colliders immediately so physics work on frame 0
+        function buildStaticWorldData() {
+            worldColliders.length = 0;
+            landmarks.length = 0;
+
+            // Main Baseplate (160 x 160)
+            worldColliders.push({ minX: -80, maxX: 80, minY: -2, maxY: 0, minZ: -80, maxZ: 80, type: "solid" });
+
+            // Center Spawn Pad
+            worldColliders.push({ minX: -4, maxX: 4, minY: 0, maxY: 0.4, minZ: -4, maxZ: 4, type: "solid" });
+            landmarks.push({ x: 0, y: 0.2, z: 0, w: 8, h: 0.4, d: 8, color: "#64748b", type: "spawn" });
+
+            // Rainbow Obby Stairs + Gold Summit
+            const rainbow = ["#ef4444", "#f97316", "#eab308", "#22c55e", "#06b6d4", "#3b82f6", "#a855f7"];
+            for (let i = 0; i < 7; i++) {
+                const bx = 18 + i * 4.5, by = 1 + i * 1.4, bz = -14;
+                worldColliders.push({ minX: bx - 2, maxX: bx + 2, minY: by - 0.6, maxY: by + 0.6, minZ: bz - 3, maxZ: bz + 3, type: "solid" });
+                landmarks.push({ x: bx, y: by, z: bz, w: 4, h: 1.2, d: 6, color: rainbow[i % rainbow.length], type: "solid" });
+            }
+            worldColliders.push({ minX: 47, maxX: 57, minY: 9.75, maxY: 11.25, minZ: -19, maxZ: -9, type: "solid" });
+            landmarks.push({ x: 52, y: 10.5, z: -14, w: 10, h: 1.5, d: 10, color: "#fbbf24", type: "solid" });
+
+            // Red Kill-Brick Pit + Safe Green Island
+            worldColliders.push({ minX: -27, maxX: -13, minY: 0, maxY: 0.8, minZ: -19, maxZ: -5, type: "solid" });
+            landmarks.push({ x: -20, y: 0.4, z: -12, w: 14, h: 0.8, d: 14, color: "#1e293b", type: "solid" });
+
+            worldColliders.push({ minX: -25, maxX: -15, minY: 0.7, maxY: 1.0, minZ: -17, maxZ: -7, type: "kill" });
+            landmarks.push({ x: -20, y: 0.85, z: -12, w: 10, h: 0.3, d: 10, color: "#ef4444", type: "kill" });
+
+            worldColliders.push({ minX: -21.5, maxX: -18.5, minY: 0.9, maxY: 2.1, minZ: -13.5, maxZ: -10.5, type: "solid" });
+            landmarks.push({ x: -20, y: 1.5, z: -12, w: 3, h: 1.2, d: 3, color: "#22c55e", type: "solid" });
+
+            // Super Jump Pad
+            worldColliders.push({ minX: -3, maxX: 3, minY: 0, maxY: 0.8, minZ: -25, maxZ: -19, type: "jumppad" });
+            landmarks.push({ x: 0, y: 0.4, z: -22, w: 6, h: 0.8, d: 6, color: "#38bdf8", type: "jumppad" });
+
+            // Giant Archway
+            worldColliders.push({ minX: -11.5, maxX: -8.5, minY: 0, maxY: 12, minZ: 22.5, maxZ: 25.5, type: "solid" });
+            landmarks.push({ x: -10, y: 6, z: 24, w: 3, h: 12, d: 3, color: "#dc2626", type: "solid" });
+
+            worldColliders.push({ minX: 8.5, maxX: 11.5, minY: 0, maxY: 12, minZ: 22.5, maxZ: 25.5, type: "solid" });
+            landmarks.push({ x: 10, y: 6, z: 24, w: 3, h: 12, d: 3, color: "#2563eb", type: "solid" });
+
+            worldColliders.push({ minX: -12, maxX: 12, minY: 12, maxY: 15, minZ: 22.5, maxZ: 25.5, type: "solid" });
+            landmarks.push({ x: 0, y: 13.5, z: 24, w: 24, h: 3, d: 3, color: "#facc15", type: "solid" });
+        }
+
+        buildStaticWorldData();
+
+        // =====================================================================
+        // 6. 3D THREE.JS RENDERER (ASYNC UPGRADE) + 2D ISOMETRIC FALLBACK
+        // =====================================================================
+        const canvas3D = document.getElementById("game-canvas");
+        const canvas2D = document.getElementById("fallback-canvas");
+        const ctx2D = canvas2D.getContext("2d");
+
+        let renderer3D = null;
+        let scene3D = null;
+        let camera3D = null;
+        let cloudGroup3D = null;
+        let localPlayerMesh3D = null;
+        let classicFaceTex = null;
+        const clickableMeshes3D = [];
+
+        function activate2DFallbackRenderer() {
+            state.renderMode = "2d";
+            canvas3D.classList.add("hidden");
+            canvas2D.classList.remove("hidden");
+            const lbl = document.getElementById("renderer-mode-label");
+            if (lbl) {
+                lbl.textContent = "2D Isometric";
+                lbl.style.color = "#7dd3fc";
+            }
+        }
+
+        // Start in 2D Isometric immediately so the background is alive at t = 0ms
+        activate2DFallbackRenderer();
+
+        function createStudTexture(baseColorHex, repeatX, repeatY) {
+            const c = document.createElement("canvas");
+            c.width = 128;
+            c.height = 128;
+            const ctx = c.getContext("2d");
+
+            ctx.fillStyle = baseColorHex;
+            ctx.fillRect(0, 0, 128, 128);
+            ctx.strokeStyle = "rgba(0, 0, 0, 0.14)";
+            ctx.lineWidth = 3;
+            ctx.strokeRect(0, 0, 128, 128);
+
+            ctx.beginPath();
+            ctx.arc(64, 67, 34, 0, Math.PI * 2);
+            ctx.fillStyle = "rgba(0, 0, 0, 0.22)";
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.arc(64, 63, 33, 0, Math.PI * 2);
+            ctx.fillStyle = "rgba(255, 255, 255, 0.18)";
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.arc(64, 64, 30, 0, Math.PI * 2);
+            ctx.fillStyle = baseColorHex;
+            ctx.fill();
+
+            const tex = new THREE.CanvasTexture(c);
+            tex.wrapS = THREE.RepeatWrapping;
+            tex.wrapT = THREE.RepeatWrapping;
+            tex.repeat.set(repeatX, repeatY);
+            return tex;
+        }
+
+        function createClassicFaceTexture() {
+            const c = document.createElement("canvas");
+            c.width = 256;
+            c.height = 256;
+            const ctx = c.getContext("2d");
+
+            ctx.fillStyle = "#111827";
+            ctx.beginPath();
+            ctx.ellipse(92, 108, 12, 16, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = "#ffffff";
+            ctx.beginPath();
+            ctx.arc(89, 102, 4, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = "#111827";
+            ctx.beginPath();
+            ctx.ellipse(164, 108, 12, 16, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = "#ffffff";
+            ctx.beginPath();
+            ctx.arc(161, 102, 4, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.strokeStyle = "#111827";
+            ctx.lineWidth = 10;
+            ctx.lineCap = "round";
+            ctx.beginPath();
+            ctx.arc(128, 134, 42, 0.2 * Math.PI, 0.8 * Math.PI);
+            ctx.stroke();
+
+            return new THREE.CanvasTexture(c);
+        }
+
+        function createSpawnPadTexture() {
+            const c = document.createElement("canvas");
+            c.width = 256;
+            c.height = 256;
+            const ctx = c.getContext("2d");
+
+            ctx.fillStyle = "#475569";
+            ctx.fillRect(0, 0, 256, 256);
+            ctx.strokeStyle = "#94a3b8";
+            ctx.lineWidth = 12;
+            ctx.strokeRect(10, 10, 236, 236);
+
+            ctx.strokeStyle = "#f8fafc";
+            ctx.lineWidth = 14;
+            ctx.beginPath();
+            ctx.arc(128, 128, 66, 0, Math.PI * 2);
+            ctx.stroke();
+
+            ctx.fillStyle = "#f8fafc";
+            ctx.beginPath();
+            ctx.arc(128, 128, 22, 0, Math.PI * 2);
+            ctx.fill();
+
+            return new THREE.CanvasTexture(c);
+        }
+
+        function createBlockMesh3D(x, y, z, w, h, d, color, type = "solid", blockId = null) {
+            if (state.renderMode !== "3d" || !scene3D) return null;
+            const geo = new THREE.BoxGeometry(w, h, d);
+            const mat = new THREE.MeshStandardMaterial({
+                color,
+                map: createStudTexture(color, Math.max(1, Math.round(w / 2)), Math.max(1, Math.round(d / 2))),
+                roughness: type === "kill" ? 0.22 : 0.65,
+                emissive: type === "kill"
+                    ? new THREE.Color("#dc2626")
+                    : (type === "jumppad" ? new THREE.Color("#0284c7") : new THREE.Color(0x000000)),
+                emissiveIntensity: (type === "kill" || type === "jumppad") ? 0.45 : 0
+            });
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.position.set(x, y, z);
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            if (blockId) mesh.userData.blockId = blockId;
+            scene3D.add(mesh);
+            clickableMeshes3D.push(mesh);
+            return mesh;
+        }
+
+        function createR6Character3D(colors) {
+            if (state.renderMode !== "3d" || !scene3D) return null;
+            const root = new THREE.Group();
+
+            const skinMat = new THREE.MeshStandardMaterial({ color: colors.skin, roughness: 0.5 });
+            const shirtMat = new THREE.MeshStandardMaterial({ color: colors.shirt, roughness: 0.65 });
+            const pantsMat = new THREE.MeshStandardMaterial({ color: colors.pants, roughness: 0.7 });
+
+            const torso = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 1), shirtMat);
+            torso.position.set(0, 3.0, 0);
+            torso.castShadow = true;
+            torso.receiveShadow = true;
+            root.add(torso);
+
+            const headGroup = new THREE.Group();
+            headGroup.position.set(0, 4.65, 0);
+            const headMesh = new THREE.Mesh(new THREE.BoxGeometry(1.25, 1.2, 1.25), skinMat);
+            headMesh.castShadow = true;
+            headGroup.add(headMesh);
+
+            const facePlane = new THREE.Mesh(
+                new THREE.PlaneGeometry(1.15, 1.15),
+                new THREE.MeshBasicMaterial({ map: classicFaceTex, transparent: true })
+            );
+            facePlane.position.z = 0.635;
+            headGroup.add(facePlane);
+            root.add(headGroup);
+
+            const leftArmPivot = new THREE.Group();
+            leftArmPivot.position.set(-1.5, 3.85, 0);
+            const leftArmMesh = new THREE.Mesh(new THREE.BoxGeometry(1, 2, 1), skinMat);
+            leftArmMesh.position.set(0, -0.85, 0);
+            leftArmMesh.castShadow = true;
+            leftArmPivot.add(leftArmMesh);
+            root.add(leftArmPivot);
+
+            const rightArmPivot = new THREE.Group();
+            rightArmPivot.position.set(1.5, 3.85, 0);
+            const rightArmMesh = new THREE.Mesh(new THREE.BoxGeometry(1, 2, 1), skinMat);
+            rightArmMesh.position.set(0, -0.85, 0);
+            rightArmMesh.castShadow = true;
+            rightArmPivot.add(rightArmMesh);
+            root.add(rightArmPivot);
+
+            const leftLegPivot = new THREE.Group();
+            leftLegPivot.position.set(-0.5, 2.0, 0);
+            const leftLegMesh = new THREE.Mesh(new THREE.BoxGeometry(1, 2, 1), pantsMat);
+            leftLegMesh.position.set(0, -1.0, 0);
+            leftLegMesh.castShadow = true;
+            leftLegPivot.add(leftLegMesh);
+            root.add(leftLegPivot);
+
+            const rightLegPivot = new THREE.Group();
+            rightLegPivot.position.set(0.5, 2.0, 0);
+            const rightLegMesh = new THREE.Mesh(new THREE.BoxGeometry(1, 2, 1), pantsMat);
+            rightLegMesh.position.set(0, -1.0, 0);
+            rightLegMesh.castShadow = true;
+            rightLegPivot.add(rightLegMesh);
+            root.add(rightLegPivot);
+
+            root.userData = {
+                torso, headGroup,
+                leftArmPivot, rightArmPivot,
+                leftLegPivot, rightLegPivot,
+                skinMat, shirtMat, pantsMat,
+                animTime: Math.random() * 10
+            };
+
+            return root;
+        }
+
+        function updateCharacterColors3D(charGroup, colors) {
+            if (!charGroup || !charGroup.userData) return;
+            charGroup.userData.skinMat.color.set(colors.skin);
+            charGroup.userData.shirtMat.color.set(colors.shirt);
+            charGroup.userData.pantsMat.color.set(colors.pants);
+        }
+
+        function animateR6Character3D(charGroup, animState, dt) {
+            if (!charGroup || !charGroup.userData) return;
+            const u = charGroup.userData;
+            u.animTime += dt;
+            const t = u.animTime;
+            const lerp = (a, b, f) => a + (b - a) * Math.min(1, f);
+
+            if (animState === "jump") {
+                u.leftArmPivot.rotation.x = lerp(u.leftArmPivot.rotation.x, -Math.PI * 0.85, dt * 14);
+                u.rightArmPivot.rotation.x = lerp(u.rightArmPivot.rotation.x, -Math.PI * 0.85, dt * 14);
+                u.leftArmPivot.rotation.z = lerp(u.leftArmPivot.rotation.z, 0.15, dt * 12);
+                u.rightArmPivot.rotation.z = lerp(u.rightArmPivot.rotation.z, -0.15, dt * 12);
+                u.leftLegPivot.rotation.x = lerp(u.leftLegPivot.rotation.x, 0.25, dt * 10);
+                u.rightLegPivot.rotation.x = lerp(u.rightLegPivot.rotation.x, -0.25, dt * 10);
+                u.torso.position.y = lerp(u.torso.position.y, 3.0, dt * 10);
+            } else if (animState === "walk" || animState === "run") {
+                const freq = animState === "run" ? 13 : 9.5;
+                const amp = animState === "run" ? 0.95 : 0.72;
+                const swing = Math.sin(t * freq) * amp;
+
+                u.leftArmPivot.rotation.x = swing;
+                u.rightArmPivot.rotation.x = -swing;
+                u.leftArmPivot.rotation.z = lerp(u.leftArmPivot.rotation.z, 0.06, dt * 10);
+                u.rightArmPivot.rotation.z = lerp(u.rightArmPivot.rotation.z, -0.06, dt * 10);
+
+                u.leftLegPivot.rotation.x = -swing;
+                u.rightLegPivot.rotation.x = swing;
+                u.torso.position.y = 3.0 + Math.abs(Math.cos(t * freq)) * 0.12;
+                u.headGroup.rotation.z = Math.sin(t * freq * 0.5) * 0.04;
+            } else if (animState === "dance") {
+                u.leftArmPivot.rotation.x = Math.sin(t * 8) * 0.8 - 1.2;
+                u.rightArmPivot.rotation.x = -Math.sin(t * 8) * 0.8 - 1.2;
+                u.leftArmPivot.rotation.z = 0.4 + Math.cos(t * 8) * 0.3;
+                u.rightArmPivot.rotation.z = -0.4 - Math.cos(t * 8) * 0.3;
+                u.leftLegPivot.rotation.x = Math.sin(t * 8) * 0.45;
+                u.rightLegPivot.rotation.x = -Math.sin(t * 8) * 0.45;
+                u.torso.position.y = 3.0 + Math.abs(Math.sin(t * 8)) * 0.28;
+                u.headGroup.rotation.y = Math.sin(t * 4) * 0.35;
+            } else if (animState === "wave") {
+                u.rightArmPivot.rotation.x = lerp(u.rightArmPivot.rotation.x, -Math.PI * 0.85, dt * 12);
+                u.rightArmPivot.rotation.z = -0.35 + Math.sin(t * 11) * 0.38;
+                u.leftArmPivot.rotation.x = lerp(u.leftArmPivot.rotation.x, 0, dt * 10);
+                u.leftArmPivot.rotation.z = lerp(u.leftArmPivot.rotation.z, 0.05, dt * 10);
+                u.leftLegPivot.rotation.x = lerp(u.leftLegPivot.rotation.x, 0, dt * 10);
+                u.rightLegPivot.rotation.x = lerp(u.rightLegPivot.rotation.x, 0, dt * 10);
+                u.headGroup.rotation.z = Math.sin(t * 5.5) * 0.12;
+            } else if (animState === "cheer") {
+                u.leftArmPivot.rotation.x = -Math.PI * 0.88 + Math.sin(t * 12) * 0.25;
+                u.rightArmPivot.rotation.x = -Math.PI * 0.88 + Math.cos(t * 12) * 0.25;
+                u.leftArmPivot.rotation.z = 0.25;
+                u.rightArmPivot.rotation.z = -0.25;
+                u.torso.position.y = 3.0 + Math.abs(Math.sin(t * 10)) * 0.22;
+                u.leftLegPivot.rotation.x = lerp(u.leftLegPivot.rotation.x, 0, dt * 10);
+                u.rightLegPivot.rotation.x = lerp(u.rightLegPivot.rotation.x, 0, dt * 10);
+            } else {
+                u.leftArmPivot.rotation.x = lerp(u.leftArmPivot.rotation.x, Math.sin(t * 2) * 0.05, dt * 8);
+                u.rightArmPivot.rotation.x = lerp(u.rightArmPivot.rotation.x, -Math.sin(t * 2) * 0.05, dt * 8);
+                u.leftArmPivot.rotation.z = lerp(u.leftArmPivot.rotation.z, 0.05 + Math.sin(t * 2.2) * 0.03, dt * 8);
+                u.rightArmPivot.rotation.z = lerp(u.rightArmPivot.rotation.z, -0.05 - Math.sin(t * 2.2) * 0.03, dt * 8);
+                u.leftLegPivot.rotation.x = lerp(u.leftLegPivot.rotation.x, 0, dt * 10);
+                u.rightLegPivot.rotation.x = lerp(u.rightLegPivot.rotation.x, 0, dt * 10);
+                u.headGroup.rotation.y = lerp(u.headGroup.rotation.y, Math.sin(t * 1.1) * 0.08, dt * 5);
+                u.headGroup.rotation.z = lerp(u.headGroup.rotation.z, 0, dt * 8);
+                u.torso.position.y = 3.0 + Math.sin(t * 2.5) * 0.04;
+            }
+        }
+
+        function tryUpgradeTo3DWebGL() {
+            if (typeof THREE === "undefined") return;
+            try {
+                renderer3D = new THREE.WebGLRenderer({ canvas: canvas3D, antialias: true, powerPreference: "high-performance" });
+                renderer3D.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+                renderer3D.setSize(window.innerWidth, window.innerHeight);
+                renderer3D.shadowMap.enabled = true;
+                renderer3D.shadowMap.type = THREE.PCFSoftShadowMap;
+
+                scene3D = new THREE.Scene();
+                scene3D.background = new THREE.Color("#7dd3fc");
+                scene3D.fog = new THREE.FogExp2("#bae6fd", 0.0026);
+
+                camera3D = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 1000);
+
+                const hemiLight = new THREE.HemisphereLight(0xffffff, 0x64748b, 0.72);
+                hemiLight.position.set(0, 100, 0);
+                scene3D.add(hemiLight);
+
+                const dirLight = new THREE.DirectionalLight(0xfffbeb, 0.95);
+                dirLight.position.set(65, 110, 55);
+                dirLight.castShadow = true;
+                dirLight.shadow.mapSize.width = 1024;
+                dirLight.shadow.mapSize.height = 1024;
+                const d = 95;
+                dirLight.shadow.camera.left = -d;
+                dirLight.shadow.camera.right = d;
+                dirLight.shadow.camera.top = d;
+                dirLight.shadow.camera.bottom = -d;
+                dirLight.shadow.camera.near = 10;
+                dirLight.shadow.camera.far = 260;
+                scene3D.add(dirLight);
+
+                classicFaceTex = createClassicFaceTexture();
+                state.renderMode = "3d";
+
+                // Baseplate
+                const plateMesh = new THREE.Mesh(
+                    new THREE.BoxGeometry(160, 2, 160),
+                    new THREE.MeshStandardMaterial({
+                        map: createStudTexture("#9ca3af", 80, 80),
+                        roughness: 0.75,
+                        metalness: 0.05
+                    })
+                );
+                plateMesh.position.set(0, -1, 0);
+                plateMesh.receiveShadow = true;
+                scene3D.add(plateMesh);
+                clickableMeshes3D.push(plateMesh);
+
+                // Landmarks
+                landmarks.forEach((lm) => {
+                    if (lm.type === "spawn") {
+                        const spawnMesh = new THREE.Mesh(
+                            new THREE.BoxGeometry(8, 0.4, 8),
+                            new THREE.MeshStandardMaterial({ map: createSpawnPadTexture(), roughness: 0.5 })
+                        );
+                        spawnMesh.position.set(0, 0.2, 0);
+                        spawnMesh.receiveShadow = true;
+                        scene3D.add(spawnMesh);
+                    } else {
+                        createBlockMesh3D(lm.x, lm.y, lm.z, lm.w, lm.h, lm.d, lm.color, lm.type);
+                    }
+                });
+
+                // Any already-placed custom blocks
+                for (const [id, blk] of state.blocks.entries()) {
+                    blk.mesh = createBlockMesh3D(blk.x, blk.y, blk.z, 4, 2, 4, blk.color, "solid", id);
+                }
+
+                // Clouds
+                cloudGroup3D = new THREE.Group();
+                const cloudMat = new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity: 0.9 });
+                for (let i = 0; i < 16; i++) {
+                    const cloud = new THREE.Mesh(
+                        new THREE.BoxGeometry(14 + Math.random() * 12, 3.2, 10 + Math.random() * 10),
+                        cloudMat
+                    );
+                    cloud.position.set((Math.random() - 0.5) * 230, 48 + Math.random() * 18, (Math.random() - 0.5) * 230);
+                    cloudGroup3D.add(cloud);
+                }
+                scene3D.add(cloudGroup3D);
+
+                // Local R6 Player
+                localPlayerMesh3D = createR6Character3D(state.avatar);
+                localPlayerMesh3D.position.set(physics.pos.x, physics.pos.y, physics.pos.z);
+                scene3D.add(localPlayerMesh3D);
+
+                // Upgrade existing bots/remotes to 3D meshes
+                for (const p of state.players.values()) {
+                    if (!p.mesh) {
+                        p.mesh = createR6Character3D(p.colors || { skin: "#facc15", shirt: "#2563eb", pants: "#65a30d" });
+                        if (p.mesh) {
+                            p.mesh.position.set(p.pos.x, p.pos.y, p.pos.z);
+                            scene3D.add(p.mesh);
+                        }
+                    }
+                }
+
+                canvas2D.classList.add("hidden");
+                canvas3D.classList.remove("hidden");
+                const lbl = document.getElementById("renderer-mode-label");
+                if (lbl) {
+                    lbl.textContent = "3D WebGL";
+                    lbl.style.color = "#86efac";
+                }
+            } catch (err) {
+                console.warn("WebGL unavailable, staying in 2D Isometric renderer:", err);
+                activate2DFallbackRenderer();
+            }
+        }
+
+        // =====================================================================
+        // 7. 2D ISOMETRIC BLOCKY FALLBACK RENDERER (100% PLAYABLE IF NO WEBGL)
+        // =====================================================================
+        function isoProject(wx, wy, wz, camCenter, yaw) {
+            const dx = wx - camCenter.x;
+            const dz = wz - camCenter.z;
+            const cos = Math.cos(yaw);
+            const sin = Math.sin(yaw);
+            const rx = dx * cos - dz * sin;
+            const rz = dx * sin + dz * cos;
+            const scale = 14.5;
+            const sx = window.innerWidth * 0.5 + (rx - rz) * scale;
+            const sy = window.innerHeight * 0.54 + (rx + rz) * (scale * 0.5) - wy * (scale * 1.15);
+            return { x: sx, y: sy, depth: rx + rz };
+        }
+
+        function drawIsoBox(cx, cy, cz, w, h, d, color, yaw, camCenter) {
+            const hw = w / 2, hh = h / 2, hd = d / 2;
+            const p000 = isoProject(cx - hw, cy - hh, cz - hd, camCenter, yaw);
+            const p100 = isoProject(cx + hw, cy - hh, cz - hd, camCenter, yaw);
+            const p101 = isoProject(cx + hw, cy - hh, cz + hd, camCenter, yaw);
+            const p001 = isoProject(cx - hw, cy - hh, cz + hd, camCenter, yaw);
+
+            const p010 = isoProject(cx - hw, cy + hh, cz - hd, camCenter, yaw);
+            const p110 = isoProject(cx + hw, cy + hh, cz - hd, camCenter, yaw);
+            const p111 = isoProject(cx + hw, cy + hh, cz + hd, camCenter, yaw);
+            const p011 = isoProject(cx - hw, cy + hh, cz + hd, camCenter, yaw);
+
+            // Left/South face
+            ctx2D.fillStyle = color;
+            ctx2D.beginPath();
+            ctx2D.moveTo(p011.x, p011.y);
+            ctx2D.lineTo(p111.x, p111.y);
+            ctx2D.lineTo(p101.x, p101.y);
+            ctx2D.lineTo(p001.x, p001.y);
+            ctx2D.closePath();
+            ctx2D.fill();
+            ctx2D.fillStyle = "rgba(0,0,0,0.18)";
+            ctx2D.fill();
+
+            // Right/East face
+            ctx2D.fillStyle = color;
+            ctx2D.beginPath();
+            ctx2D.moveTo(p111.x, p111.y);
+            ctx2D.lineTo(p110.x, p110.y);
+            ctx2D.lineTo(p100.x, p100.y);
+            ctx2D.lineTo(p101.x, p101.y);
+            ctx2D.closePath();
+            ctx2D.fill();
+            ctx2D.fillStyle = "rgba(0,0,0,0.32)";
+            ctx2D.fill();
+
+            // Top face
+            ctx2D.fillStyle = color;
+            ctx2D.beginPath();
+            ctx2D.moveTo(p010.x, p010.y);
+            ctx2D.lineTo(p110.x, p110.y);
+            ctx2D.lineTo(p111.x, p111.y);
+            ctx2D.lineTo(p011.x, p011.y);
+            ctx2D.closePath();
+            ctx2D.fill();
+            ctx2D.strokeStyle = "rgba(15,23,42,0.28)";
+            ctx2D.lineWidth = 1;
+            ctx2D.stroke();
+        }
+
+        function drawIsoCharacter(pos, colors, animState, t, yaw, camCenter) {
+            const bob = (animState === "walk" || animState === "run") ? Math.abs(Math.sin(t * 10)) * 0.25 : 0;
+            // Legs
+            drawIsoBox(pos.x, pos.y + 1.0, pos.z, 1.6, 2.0, 1.0, colors.pants, yaw, camCenter);
+            // Torso
+            drawIsoBox(pos.x, pos.y + 3.0 + bob, pos.z, 2.0, 2.0, 1.0, colors.shirt, yaw, camCenter);
+            // Head
+            drawIsoBox(pos.x, pos.y + 4.65 + bob, pos.z, 1.25, 1.2, 1.25, colors.skin, yaw, camCenter);
+        }
+
+        function render2DFallbackFrame(now) {
+            if (canvas2D.width !== window.innerWidth || canvas2D.height !== window.innerHeight) {
+                canvas2D.width = window.innerWidth;
+                canvas2D.height = window.innerHeight;
+            }
+            const w = canvas2D.width;
+            const h = canvas2D.height;
+
+            const sky = ctx2D.createLinearGradient(0, 0, 0, h);
+            sky.addColorStop(0, "#1d4ed8");
+            sky.addColorStop(0.55, "#38bdf8");
+            sky.addColorStop(1, "#bae6fd");
+            ctx2D.fillStyle = sky;
+            ctx2D.fillRect(0, 0, w, h);
+
+            const yaw = state.inGame ? camState.yaw : now * 0.00025;
+            const camCenter = { x: physics.pos.x, z: physics.pos.z };
+
+            // Baseplate floor polygon
+            const c1 = isoProject(-80, 0, -80, camCenter, yaw);
+            const c2 = isoProject(80, 0, -80, camCenter, yaw);
+            const c3 = isoProject(80, 0, 80, camCenter, yaw);
+            const c4 = isoProject(-80, 0, 80, camCenter, yaw);
+
+            ctx2D.fillStyle = "#9ca3af";
+            ctx2D.beginPath();
+            ctx2D.moveTo(c1.x, c1.y);
+            ctx2D.lineTo(c2.x, c2.y);
+            ctx2D.lineTo(c3.x, c3.y);
+            ctx2D.lineTo(c4.x, c4.y);
+            ctx2D.closePath();
+            ctx2D.fill();
+            ctx2D.strokeStyle = "#4b5563";
+            ctx2D.lineWidth = 3;
+            ctx2D.stroke();
+
+            // Grid studs lines near player
+            ctx2D.strokeStyle = "rgba(15, 23, 42, 0.14)";
+            ctx2D.lineWidth = 1;
+            const gx0 = Math.floor(physics.pos.x / 4) * 4 - 40;
+            const gz0 = Math.floor(physics.pos.z / 4) * 4 - 40;
+            for (let g = 0; g <= 80; g += 4) {
+                const a1 = isoProject(gx0 + g, 0, gz0, camCenter, yaw);
+                const a2 = isoProject(gx0 + g, 0, gz0 + 80, camCenter, yaw);
+                ctx2D.beginPath(); ctx2D.moveTo(a1.x, a1.y); ctx2D.lineTo(a2.x, a2.y); ctx2D.stroke();
+
+                const b1 = isoProject(gx0, 0, gz0 + g, camCenter, yaw);
+                const b2 = isoProject(gx0 + 80, 0, gz0 + g, camCenter, yaw);
+                ctx2D.beginPath(); ctx2D.moveTo(b1.x, b1.y); ctx2D.lineTo(b2.x, b2.y); ctx2D.stroke();
+            }
+
+            // Collect drawable items and depth-sort
+            const drawables = [];
+            landmarks.forEach((lm) => {
+                const p = isoProject(lm.x, lm.y, lm.z, camCenter, yaw);
+                drawables.push({ depth: p.depth + lm.y * 0.2, fn: () => drawIsoBox(lm.x, lm.y, lm.z, lm.w, lm.h, lm.d, lm.color, yaw, camCenter) });
+            });
+            for (const blk of state.blocks.values()) {
+                const p = isoProject(blk.x, blk.y, blk.z, camCenter, yaw);
+                drawables.push({ depth: p.depth + blk.y * 0.2, fn: () => drawIsoBox(blk.x, blk.y, blk.z, 4, 2, 4, blk.color, yaw, camCenter) });
+            }
+            const tSec = now * 0.001;
+            const localProj = isoProject(physics.pos.x, physics.pos.y, physics.pos.z, camCenter, yaw);
+            drawables.push({
+                depth: localProj.depth + physics.pos.y * 0.2 + 0.5,
+                fn: () => drawIsoCharacter(physics.pos, state.avatar, physics.animState, tSec, yaw, camCenter)
+            });
+            for (const p of state.players.values()) {
+                const rp = isoProject(p.pos.x, p.pos.y, p.pos.z, camCenter, yaw);
+                drawables.push({
+                    depth: rp.depth + p.pos.y * 0.2 + 0.5,
+                    fn: () => drawIsoCharacter(p.pos, p.colors || { skin: "#facc15", shirt: "#2563eb", pants: "#65a30d" }, p.anim, tSec, yaw, camCenter)
+                });
+            }
+
+            drawables.sort((a, b) => a.depth - b.depth);
+            drawables.forEach((d) => d.fn());
+        }
+
+        // =====================================================================
+        // 8. SPAWN / RESPAWN & PARTICLES
+        // =====================================================================
+        function spawnOofExplosion(pos, colors) {
+            if (state.renderMode !== "3d" || !scene3D) return;
+            const palette = [colors.skin, colors.shirt, colors.pants, "#ef4444"];
+            for (let i = 0; i < 16; i++) {
+                const pMesh = new THREE.Mesh(
+                    new THREE.BoxGeometry(0.65, 0.65, 0.65),
+                    new THREE.MeshStandardMaterial({ color: palette[i % palette.length] })
+                );
+                pMesh.position.set(
+                    pos.x + (Math.random() - 0.5) * 1.4,
+                    pos.y + 1 + Math.random() * 2.2,
+                    pos.z + (Math.random() - 0.5) * 1.4
+                );
+                scene3D.add(pMesh);
+                state.particles.push({
+                    mesh: pMesh,
+                    vel: { x: (Math.random() - 0.5) * 14, y: 7 + Math.random() * 10, z: (Math.random() - 0.5) * 14 },
+                    rotVel: { x: Math.random() * 8, y: Math.random() * 8, z: Math.random() * 8 },
+                    life: 1.15
+                });
+            }
+        }
+
+        function respawnPlayer(withOof = false) {
+            if (withOof) {
+                SoundFX.playOof();
+                spawnOofExplosion(physics.pos, state.avatar);
+            }
+            physics.pos.x = (Math.random() - 0.5) * 4;
+            physics.pos.y = 1.0;
+            physics.pos.z = (Math.random() - 0.5) * 4;
+            physics.vel.x = 0;
+            physics.vel.y = 0;
+            physics.vel.z = 0;
+            physics.grounded = true;
+            state.currentEmote = null;
+            if (localPlayerMesh3D) {
+                localPlayerMesh3D.position.set(physics.pos.x, physics.pos.y, physics.pos.z);
+            }
+            networkManager.broadcastState(true);
+        }
+
+        // =====================================================================
+        // 9. NON-BLOCKING MULTIPLAYER MANAGER (BROADCASTCHANNEL + MQTT + WS)
+        // =====================================================================
+        const PUBLIC_MQTT_BROKERS = [
+            "wss://broker.emqx.io:8084/mqtt",
+            "wss://broker.hivemq.com:8884/mqtt",
+            "wss://test.mosquitto.org:8081/mqtt"
+        ];
+
+        class NetworkManager {
+            constructor() {
+                this.bc = null;
+                this.mqttClient = null;
+                this.brokerIdx = 0;
+                this.ws = null;
+                this.relayOnline = false;
+                this.lastBroadcast = 0;
+                this.seenIds = new Set();
+            }
+
+            updateStatusDisplays() {
+                const remotes = Array.from(state.players.values()).filter((p) => !p.isBot).length;
+                const total = 1 + remotes;
+
+                const hudStatusText = document.getElementById("hud-server-status-text");
+                const hudDot = document.getElementById("hud-status-dot");
+                const roomDisplay = document.getElementById("hud-room-code-display");
+                const lobbyBadge = document.getElementById("server-badge");
+                const lobbyStatusText = document.getElementById("server-status-text");
+
+                if (roomDisplay) roomDisplay.textContent = state.roomCode;
+                if (hudStatusText) {
+                    hudStatusText.textContent = "Server Live • Code: " + state.roomCode + " (" + total + ")";
+                }
+                if (hudDot) {
+                    hudDot.style.background = this.relayOnline ? "#4ade80" : "#38bdf8";
+                }
+                if (lobbyBadge && lobbyStatusText) {
+                    if (this.relayOnline) {
+                        lobbyBadge.className = "status-badge status-ready";
+                        lobbyStatusText.textContent = "Global Relay Connected";
+                    } else {
+                        lobbyBadge.className = "status-badge status-local";
+                        lobbyStatusText.textContent = "Instant Server Ready";
+                    }
+                }
+            }
+
+            disconnectAll() {
+                this.relayOnline = false;
+                if (this.mqttClient) {
+                    try { this.mqttClient.end(true); } catch (e) {}
+                    this.mqttClient = null;
+                }
+                if (this.ws) {
+                    try {
+                        this.ws.onopen = null;
+                        this.ws.onmessage = null;
+                        this.ws.onerror = null;
+                        this.ws.onclose = null;
+                        this.ws.close();
+                    } catch (e) {}
+                    this.ws = null;
+                }
+                if (this.bc) {
+                    try { this.bc.close(); } catch (e) {}
+                    this.bc = null;
+                }
+            }
+
+            clearRemotePlayers() {
+                for (const [uid, p] of state.players.entries()) {
+                    if (!p.isBot) {
+                        if (p.mesh && scene3D) scene3D.remove(p.mesh);
+                        if (p.labelEl) p.labelEl.remove();
+                        state.players.delete(uid);
+                    }
+                }
+                updateLeaderboardUI();
+            }
+
+            connectRoom(roomCode) {
+                if (roomCode) {
+                    state.roomCode = roomCode.toUpperCase().replace(/[^A-Z0-9-]/g, "").slice(0, 16) || generateRoomCode();
+                }
+                this.disconnectAll();
+                this.clearRemotePlayers();
+                this.updateStatusDisplays();
+
+                // Update URL query safely so user can share or refresh
+                try {
+                    const u = new URL(window.location.href);
+                    u.searchParams.set("room", state.roomCode);
+                    if (state.customWsUrl) u.searchParams.set("ws", state.customWsUrl);
+                    else u.searchParams.delete("ws");
+                    window.history.replaceState({}, "", u.toString());
+                } catch (e) {}
+
+                // 1. Instant local multi-tab BroadcastChannel
+                try {
+                    if ("BroadcastChannel" in window) {
+                        this.bc = new BroadcastChannel("bloxro_room_" + state.roomCode);
+                        this.bc.onmessage = (ev) => this.onPacket(ev.data);
+                    }
+                } catch (e) {}
+
+                // Announce locally immediately
+                this.publish("join", {
+                    uid: state.userId,
+                    username: state.username,
+                    skin: state.avatar.skin,
+                    shirt: state.avatar.shirt,
+                    pants: state.avatar.pants
+                });
+                this.publish("sync_world_request", { requesterId: state.userId });
+
+                // 2. Connect custom WebSocket OR global MQTT WSS relay in background
+                if (state.customWsUrl && /^wss?:\/\/.+/i.test(state.customWsUrl)) {
+                    this.connectCustomWS(state.customWsUrl);
+                } else {
+                    this.connectGlobalMqtt(0);
+                }
+            }
+
+            connectGlobalMqtt(idx) {
+                if (typeof mqtt === "undefined") {
+                    this.relayOnline = false;
+                    this.updateStatusDisplays();
+                    return;
+                }
+                this.brokerIdx = idx % PUBLIC_MQTT_BROKERS.length;
+                const url = PUBLIC_MQTT_BROKERS[this.brokerIdx];
+                const prefix = "bloxro/v3/baseplate/" + state.roomCode;
+                const clientId = "bloxro_" + state.userId + "_" + Math.random().toString(36).slice(2, 6);
+
+                let settled = false;
+                let client;
+                try {
+                    client = mqtt.connect(url, {
+                        clientId,
+                        clean: true,
+                        connectTimeout: 4500,
+                        reconnectPeriod: 4500,
+                        keepalive: 25
+                    });
+                } catch (e) {
+                    this.relayOnline = false;
+                    this.updateStatusDisplays();
+                    return;
+                }
+
+                this.mqttClient = client;
+
+                const fallbackTimer = setTimeout(() => {
+                    if (!settled && this.mqttClient === client) {
+                        settled = true;
+                        try { client.end(true); } catch (e) {}
+                        if (this.brokerIdx + 1 < PUBLIC_MQTT_BROKERS.length) {
+                            this.connectGlobalMqtt(this.brokerIdx + 1);
+                        } else {
+                            this.relayOnline = false;
+                            this.updateStatusDisplays();
+                        }
+                    }
+                }, 4800);
+
+                client.on("connect", () => {
+                    if (this.mqttClient !== client) return;
+                    settled = true;
+                    clearTimeout(fallbackTimer);
+                    this.relayOnline = true;
+                    this.updateStatusDisplays();
+                    try { client.subscribe(prefix + "/#", { qos: 0 }); } catch (e) {}
+                    this.publish("join", {
+                        uid: state.userId,
+                        username: state.username,
+                        skin: state.avatar.skin,
+                        shirt: state.avatar.shirt,
+                        pants: state.avatar.pants
+                    });
+                    this.publish("sync_world_request", { requesterId: state.userId });
+                    this.broadcastState(true);
+                });
+
+                client.on("message", (topic, payload) => {
+                    if (this.mqttClient !== client) return;
+                    try {
+                        const obj = JSON.parse(payload.toString());
+                        const sub = topic.slice(prefix.length + 1);
+                        this.onPacket({ type: sub, ...obj });
+                    } catch (e) {}
+                });
+
+                client.on("error", () => {
+                    if (settled || this.mqttClient !== client) return;
+                    settled = true;
+                    clearTimeout(fallbackTimer);
+                    try { client.end(true); } catch (e) {}
+                    if (this.brokerIdx + 1 < PUBLIC_MQTT_BROKERS.length) {
+                        this.connectGlobalMqtt(this.brokerIdx + 1);
+                    } else {
+                        this.relayOnline = false;
+                        this.updateStatusDisplays();
+                    }
+                });
+            }
+
+            connectCustomWS(url) {
+                let socket;
+                try {
+                    socket = new WebSocket(url);
+                } catch (e) {
+                    this.relayOnline = false;
+                    this.updateStatusDisplays();
+                    return;
+                }
+                this.ws = socket;
+                let opened = false;
+
+                const timer = setTimeout(() => {
+                    if (!opened && this.ws === socket) {
+                        try { socket.close(); } catch (e) {}
+                        this.relayOnline = false;
+                        this.updateStatusDisplays();
+                    }
+                }, 4800);
+
+                socket.onopen = () => {
+                    if (this.ws !== socket) return;
+                    opened = true;
+                    clearTimeout(timer);
+                    this.relayOnline = true;
+                    this.updateStatusDisplays();
+                    this.publish("join", {
+                        uid: state.userId,
+                        username: state.username,
+                        skin: state.avatar.skin,
+                        shirt: state.avatar.shirt,
+                        pants: state.avatar.pants
+                    });
+                    this.publish("sync_world_request", { requesterId: state.userId });
+                    this.broadcastState(true);
+                };
+
+                socket.onmessage = (ev) => {
+                    if (this.ws !== socket) return;
+                    try {
+                        const data = JSON.parse(ev.data);
+                        if (data && typeof data === "object") this.onPacket(data);
+                    } catch (e) {}
+                };
+
+                socket.onerror = () => {
+                    if (this.ws !== socket) return;
+                    clearTimeout(timer);
+                    this.relayOnline = false;
+                    this.updateStatusDisplays();
+                };
+
+                socket.onclose = () => {
+                    if (this.ws !== socket) return;
+                    clearTimeout(timer);
+                    this.ws = null;
+                    this.relayOnline = false;
+                    this.updateStatusDisplays();
+                };
+            }
+
+            publish(type, payload) {
+                const pkt = {
+                    type,
+                    room: state.roomCode,
+                    msgId: state.userId + "_" + Math.random().toString(36).slice(2, 8),
+                    sentAt: Date.now(),
+                    ...payload
+                };
+
+                if (this.bc) {
+                    try { this.bc.postMessage(pkt); } catch (e) {}
+                }
+
+                if (this.mqttClient && this.mqttClient.connected) {
+                    try {
+                        const topic = "bloxro/v3/baseplate/" + state.roomCode + "/" + type;
+                        this.mqttClient.publish(topic, JSON.stringify(pkt), { qos: 0 });
+                    } catch (e) {}
+                }
+
+                if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                    try { this.ws.send(JSON.stringify(pkt)); } catch (e) {}
+                }
+            }
+
+            broadcastState(force = false) {
+                const now = Date.now();
+                const moving = Math.hypot(physics.vel.x, physics.vel.z) > 0.4 || !physics.grounded || state.currentEmote !== null;
+                const interval = moving ? 65 : 1000;
+                if (!force && now - this.lastBroadcast < interval) return;
+                this.lastBroadcast = now;
+
+                this.publish("state", {
+                    uid: state.userId,
+                    username: state.username,
+                    skin: state.avatar.skin,
+                    shirt: state.avatar.shirt,
+                    pants: state.avatar.pants,
+                    x: Number(physics.pos.x.toFixed(2)),
+                    y: Number(physics.pos.y.toFixed(2)),
+                    z: Number(physics.pos.z.toFixed(2)),
+                    yaw: Number(physics.yaw.toFixed(2)),
+                    anim: physics.animState,
+                    chatText: (now - state.lastChatTime < 6500) ? state.lastChatBubble : ""
+                });
+            }
+
+            onPacket(pkt) {
+                if (!pkt || typeof pkt !== "object") return;
+                if (pkt.uid === state.userId || pkt.requesterId === state.userId) return;
+                if (pkt.room && String(pkt.room).toUpperCase() !== state.roomCode) return;
+
+                if (pkt.msgId && pkt.type !== "state") {
+                    if (this.seenIds.has(pkt.msgId)) return;
+                    this.seenIds.add(pkt.msgId);
+                    if (this.seenIds.size > 350) {
+                        const first = this.seenIds.values().next().value;
+                        this.seenIds.delete(first);
+                    }
+                }
+
+                if (pkt.type === "join") {
+                    const existed = state.players.has(pkt.uid);
+                    this.upsertPlayer(pkt);
+                    if (!existed) appendChatMessage("System", (pkt.username || "Player") + " joined the server!", true);
+                    this.broadcastState(true);
+                } else if (pkt.type === "state") {
+                    const existed = state.players.has(pkt.uid);
+                    this.upsertPlayer(pkt);
+                    if (!existed) appendChatMessage("System", (pkt.username || "Player") + " joined the server!", true);
+                } else if (pkt.type === "leave") {
+                    const p = state.players.get(pkt.uid);
+                    if (p) {
+                        appendChatMessage("System", p.username + " left the server.", true);
+                        if (p.mesh && scene3D) scene3D.remove(p.mesh);
+                        if (p.labelEl) p.labelEl.remove();
+                        state.players.delete(pkt.uid);
+                        updateLeaderboardUI();
+                        this.updateStatusDisplays();
+                    }
+                } else if (pkt.type === "chat") {
+                    appendChatMessage(pkt.username || "Player", pkt.text || "");
+                    const p = state.players.get(pkt.uid);
+                    if (p) {
+                        p.chatText = pkt.text || "";
+                        p.chatExpiry = Date.now() + 6500;
+                    }
+                } else if (pkt.type === "place_block") {
+                    placeSyncedBlock(pkt.x, pkt.y, pkt.z, pkt.color, false);
+                } else if (pkt.type === "delete_block") {
+                    removeSyncedBlock(pkt.blockId, false);
+                } else if (pkt.type === "sync_world_request") {
+                    if (state.blocks.size > 0) {
+                        const list = Array.from(state.blocks.values()).map((b) => ({
+                            id: b.id, x: b.x, y: b.y, z: b.z, color: b.color
+                        }));
+                        this.publish("sync_world_state", { blocks: list });
+                    }
+                } else if (pkt.type === "sync_world_state" && Array.isArray(pkt.blocks)) {
+                    pkt.blocks.forEach((b) => placeSyncedBlock(b.x, b.y, b.z, b.color, false));
+                }
+            }
+
+            upsertPlayer(data) {
+                if (!data.uid) return;
+                const now = Date.now();
+                const ping = data.sentAt ? Math.max(12, Math.min(999, Math.abs(now - data.sentAt))) : 35;
+                const colors = {
+                    skin: data.skin || "#facc15",
+                    shirt: data.shirt || "#2563eb",
+                    pants: data.pants || "#65a30d"
+                };
+                let p = state.players.get(data.uid);
+
+                if (!p) {
+                    const mesh = createR6Character3D(colors);
+                    if (mesh) {
+                        mesh.position.set(data.x || 0, data.y || 0.5, data.z || 0);
+                        scene3D.add(mesh);
+                    }
+                    p = {
+                        uid: data.uid,
+                        isBot: false,
+                        colors,
+                        mesh,
+                        pos: { x: data.x || 0, y: data.y || 0.5, z: data.z || 0 },
+                        targetPos: { x: data.x || 0, y: data.y || 0.5, z: data.z || 0 },
+                        targetYaw: data.yaw || 0,
+                        anim: data.anim || "idle",
+                        username: data.username || "Player",
+                        chatText: data.chatText || "",
+                        chatExpiry: data.chatText ? now + 6500 : 0,
+                        lastSeen: now,
+                        ping
+                    };
+                    state.players.set(data.uid, p);
+                    updateLeaderboardUI();
+                    this.updateStatusDisplays();
+                } else {
+                    if (typeof data.x === "number") p.targetPos.x = data.x;
+                    if (typeof data.y === "number") p.targetPos.y = data.y;
+                    if (typeof data.z === "number") p.targetPos.z = data.z;
+                    if (typeof data.yaw === "number") p.targetYaw = data.yaw;
+                    if (data.anim) p.anim = data.anim;
+                    if (data.username && p.username !== data.username) {
+                        p.username = data.username;
+                        updateLeaderboardUI();
+                    }
+                    if (data.chatText) {
+                        p.chatText = data.chatText;
+                        p.chatExpiry = now + 6500;
+                    }
+                    p.colors = colors;
+                    if (p.mesh) updateCharacterColors3D(p.mesh, colors);
+                    p.lastSeen = now;
+                    p.ping = ping;
+                }
+            }
+
+            pruneStalePlayers() {
+                const now = Date.now();
+                let removed = false;
+                for (const [uid, p] of state.players.entries()) {
+                    if (!p.isBot && now - p.lastSeen > 7000) {
+                        appendChatMessage("System", p.username + " timed out.", true);
+                        if (p.mesh && scene3D) scene3D.remove(p.mesh);
+                        if (p.labelEl) p.labelEl.remove();
+                        state.players.delete(uid);
+                        removed = true;
+                    }
+                }
+                if (removed) {
+                    updateLeaderboardUI();
+                    this.updateStatusDisplays();
+                }
+            }
+        }
+
+        const networkManager = new NetworkManager();
+
+        // =====================================================================
+        // 10. ONE-CLICK SERVER CREATION, INVITE SHARING & JOIN FLOW
+        // =====================================================================
+        const playBtn = document.getElementById("play-btn");
+        const friendCodeInput = document.getElementById("friend-code-input");
+        const lobbyFeedback = document.getElementById("lobby-feedback");
+        const inviteCard = document.getElementById("invite-card");
+        const inviteCardTitle = document.getElementById("invite-card-title");
+        const inviteCardFeedback = document.getElementById("invite-card-feedback");
+        const chatPanel = document.getElementById("chat-panel");
+
+        function syncPlayButtonWithFriendInput() {
+            const typed = friendCodeInput.value.trim().toUpperCase();
+            if (typed) {
+                playBtn.textContent = "Join Server (" + typed + ")";
+            } else if (state.invitedRoomCode) {
+                playBtn.textContent = "Join Server (" + state.invitedRoomCode + ")";
+            } else {
+                playBtn.textContent = "Play Baseplate";
+            }
+        }
+
+        if (state.invitedRoomCode) {
+            friendCodeInput.value = state.invitedRoomCode;
+            lobbyFeedback.textContent = "Invite link detected! Click Join Server (" + state.invitedRoomCode + ") to enter your friend's Baseplate.";
+            syncPlayButtonWithFriendInput();
+        }
+
+        friendCodeInput.addEventListener("input", syncPlayButtonWithFriendInput);
+
+        function buildInviteShareUrl() {
+            try {
+                const u = new URL(window.location.href);
+                u.searchParams.set("room", state.roomCode);
+                if (state.customWsUrl) u.searchParams.set("ws", state.customWsUrl);
+                else u.searchParams.delete("ws");
+                return u.toString();
+            } catch (e) {
+                return window.location.href;
+            }
+        }
+
+        function copyTextFallback(text) {
+            try {
+                const ta = document.createElement("textarea");
+                ta.value = text;
+                ta.style.position = "fixed";
+                ta.style.opacity = "0";
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand("copy");
+                document.body.removeChild(ta);
+                return true;
+            } catch (e) {
+                return false;
+            }
+        }
+
+        function launchIntoBaseplateServer(targetRoomCode = "") {
+            SoundFX.unlock();
+            SoundFX.playClick();
+
+            const typedName = document.getElementById("username-input").value.trim();
+            if (typedName) state.username = typedName.slice(0, 20);
+            if (localPlayerMesh3D) updateCharacterColors3D(localPlayerMesh3D, state.avatar);
+
+            const cleanTarget = targetRoomCode.trim().toUpperCase().replace(/[^A-Z0-9-]/g, "").slice(0, 16);
+            if (cleanTarget) {
+                state.roomCode = cleanTarget;
+                state.isHostCreator = false;
+                inviteCardTitle.textContent = "Joined Server • Invite Friends";
+            } else {
+                state.roomCode = generateRoomCode();
+                state.isHostCreator = true;
+                inviteCardTitle.textContent = "Server Created • Invite Friends";
+            }
+
+            // Switch immediately to gameplay with zero waiting
+            document.getElementById("lobby-screen").classList.add("hidden");
+            document.getElementById("game-hud").classList.remove("hidden");
+            inviteCard.classList.remove("hidden");
+            chatPanel.classList.remove("compact-top");
+            state.inGame = true;
+
+            networkManager.connectRoom(state.roomCode);
+            updateLeaderboardUI();
+            appendChatMessage(
+                "System",
+                (state.isHostCreator ? "Created server [" : "Joined server [") + state.roomCode + "]! Share your code to invite friends.",
+                true
+            );
+        }
+
+        playBtn.addEventListener("click", () => {
+            const code = friendCodeInput.value.trim() || state.invitedRoomCode;
+            launchIntoBaseplateServer(code);
+        });
+
+        document.getElementById("join-code-btn").addEventListener("click", () => {
+            const code = friendCodeInput.value.trim();
+            if (!code) {
+                lobbyFeedback.textContent = "Enter a friend's room code first (e.g. BLX-4829), or click Play Baseplate to create one!";
+                friendCodeInput.focus();
+                return;
+            }
+            launchIntoBaseplateServer(code);
+        });
+
+        document.getElementById("hud-copy-code-btn").addEventListener("click", () => {
+            SoundFX.unlock();
+            SoundFX.playClick();
+            copyTextFallback(state.roomCode);
+            inviteCardFeedback.textContent = "Copied room code [" + state.roomCode + "] to clipboard!";
+        });
+
+        document.getElementById("hud-copy-link-btn").addEventListener("click", () => {
+            SoundFX.unlock();
+            SoundFX.playClick();
+            const link = buildInviteShareUrl();
+            copyTextFallback("Join my Blox-ro Baseplate server! Code: " + state.roomCode + " • " + link);
+            inviteCardFeedback.textContent = "Copied invite link for room [" + state.roomCode + "]!";
+        });
+
+        document.getElementById("close-invite-card-btn").addEventListener("click", () => {
+            inviteCard.classList.add("hidden");
+            chatPanel.classList.add("compact-top");
+        });
+
+        document.getElementById("hud-server-pill").addEventListener("click", () => {
+            SoundFX.unlock();
+            SoundFX.playClick();
+            const willShow = inviteCard.classList.contains("hidden");
+            inviteCard.classList.toggle("hidden", !willShow);
+            chatPanel.classList.toggle("compact-top", !willShow);
+        });
+
+        // Self-Host / Custom WS Modal
+        const hostModal = document.getElementById("host-modal");
+        const hostFeedback = document.getElementById("host-copy-feedback");
+        const customWsInput = document.getElementById("custom-ws-input");
+        customWsInput.value = state.customWsUrl;
+
+        document.getElementById("open-host-modal-btn").addEventListener("click", () => {
+            SoundFX.unlock();
+            SoundFX.playClick();
+            hostFeedback.textContent = "";
+            hostModal.classList.remove("hidden");
+        });
+        document.getElementById("close-host-modal-btn").addEventListener("click", () => {
+            hostModal.classList.add("hidden");
+        });
+        document.getElementById("connect-custom-ws-btn").addEventListener("click", () => {
+            state.customWsUrl = customWsInput.value.trim();
+            hostFeedback.textContent = state.customWsUrl
+                ? "Configured custom WebSocket: " + state.customWsUrl
+                : "Cleared custom WebSocket URL.";
+            if (state.inGame) networkManager.connectRoom(state.roomCode);
+        });
+        document.getElementById("reset-default-relay-btn").addEventListener("click", () => {
+            state.customWsUrl = "";
+            customWsInput.value = "";
+            hostFeedback.textContent = "Using built-in BroadcastChannel + WSS relay.";
+            if (state.inGame) networkManager.connectRoom(state.roomCode);
+        });
+        document.getElementById("copy-server-code-btn").addEventListener("click", () => {
+            copyTextFallback(NODE_WS_SERVER_CODE);
+            hostFeedback.textContent = "Copied server.js to clipboard!";
+        });
+        document.getElementById("download-server-code-btn").addEventListener("click", () => {
+            try {
+                const blob = new Blob([NODE_WS_SERVER_CODE], { type: "application/javascript" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = "server.js";
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+                hostFeedback.textContent = "Downloaded server.js!";
+            } catch (e) {
+                hostFeedback.textContent = "Copy from the code box below.";
+            }
+        });
+
+        // =====================================================================
+        // 11. AVATAR CUSTOMIZER & AI BOTS
+        // =====================================================================
+        const usernameInput = document.getElementById("username-input");
+        usernameInput.value = state.username;
+        usernameInput.addEventListener("input", () => {
+            const val = usernameInput.value.trim();
+            if (val) {
+                state.username = val.slice(0, 20);
+                updateLeaderboardUI();
+            }
+        });
+
+        function renderSwatches(containerId, palette, key) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = "";
+            palette.forEach((hex) => {
+                const btn = document.createElement("button");
+                btn.type = "button";
+                btn.className = "swatch-btn" + (state.avatar[key] === hex ? " selected" : "");
+                btn.style.backgroundColor = hex;
+                btn.addEventListener("click", () => {
+                    SoundFX.unlock();
+                    SoundFX.playClick();
+                    state.avatar[key] = hex;
+                    renderAllSwatches();
+                    if (localPlayerMesh3D) updateCharacterColors3D(localPlayerMesh3D, state.avatar);
+                    networkManager.broadcastState(true);
+                });
+                container.appendChild(btn);
+            });
+        }
+
+        function renderAllSwatches() {
+            renderSwatches("skin-colors", SKIN_PALETTE, "skin");
+            renderSwatches("shirt-colors", SHIRT_PALETTE, "shirt");
+            renderSwatches("pants-colors", PANTS_PALETTE, "pants");
+        }
+        renderAllSwatches();
+
+        document.querySelectorAll(".preset-btn").forEach((btn) => {
+            btn.addEventListener("click", () => {
+                SoundFX.unlock();
+                SoundFX.playClick();
+                const p = btn.dataset.preset;
+                if (p === "noob") state.avatar = { skin: "#facc15", shirt: "#2563eb", pants: "#65a30d" };
+                if (p === "guest") state.avatar = { skin: "#e2e8f0", shirt: "#1e293b", pants: "#1f2937" };
+                if (p === "builder") state.avatar = { skin: "#f5d0a9", shirt: "#f97316", pants: "#1e3a8a" };
+                renderAllSwatches();
+                if (localPlayerMesh3D) updateCharacterColors3D(localPlayerMesh3D, state.avatar);
+                networkManager.broadcastState(true);
+            });
+        });
+
+        const BOT_NAMES = ["Builderman [BOT]", "NoobMaster [BOT]", "Guest_01 [BOT]", "BloxBuilder [BOT]"];
+        const BOT_PHRASES = [
+            "Welcome to Baseplate!",
+            "Try the rainbow obby!",
+            "/e dance",
+            "Nice avatar!",
+            "Let's build together!"
+        ];
+
+        function spawnBot() {
+            SoundFX.unlock();
+            SoundFX.playClick();
+            const botId = "bot_" + Math.random().toString(36).slice(2, 8);
+            const name = BOT_NAMES[state.players.size % BOT_NAMES.length];
+            const outfits = [
+                { skin: "#facc15", shirt: "#2563eb", pants: "#65a30d" },
+                { skin: "#f5d0a9", shirt: "#f97316", pants: "#1e3a8a" },
+                { skin: "#fde047", shirt: "#ef4444", pants: "#1f2937" }
+            ];
+            const colors = outfits[Math.floor(Math.random() * outfits.length)];
+            const sx = (Math.random() - 0.5) * 16;
+            const sz = (Math.random() - 0.5) * 16;
+
+            const mesh = createR6Character3D(colors);
+            if (mesh) {
+                mesh.position.set(sx, 0.5, sz);
+                scene3D.add(mesh);
+            }
+
+            state.players.set(botId, {
+                uid: botId,
+                isBot: true,
+                colors,
+                mesh,
+                pos: { x: sx, y: 0.5, z: sz },
+                goalPos: { x: (Math.random() - 0.5) * 38, y: 0.5, z: (Math.random() - 0.5) * 38 },
+                targetYaw: 0,
+                anim: "walk",
+                username: name,
+                chatText: "Ready on Baseplate!",
+                chatExpiry: Date.now() + 4500,
+                decisionTimer: 2 + Math.random() * 3,
+                ping: 0
+            });
+            appendChatMessage("System", name + " spawned.", true);
+            updateLeaderboardUI();
+        }
+
+        function clearBots() {
+            SoundFX.unlock();
+            SoundFX.playClick();
+            let count = 0;
+            for (const [uid, p] of state.players.entries()) {
+                if (p.isBot) {
+                    if (p.mesh && scene3D) scene3D.remove(p.mesh);
+                    if (p.labelEl) p.labelEl.remove();
+                    state.players.delete(uid);
+                    count++;
+                }
+            }
+            if (count > 0) {
+                appendChatMessage("System", "Removed " + count + (count === 1 ? " bot." : " bots."), true);
+                updateLeaderboardUI();
+            }
+        }
+
+        function triggerBotReply() {
+            const bots = Array.from(state.players.values()).filter((p) => p.isBot);
+            if (bots.length === 0) return;
+            const bot = bots[Math.floor(Math.random() * bots.length)];
+            setTimeout(() => {
+                const line = BOT_PHRASES[Math.floor(Math.random() * BOT_PHRASES.length)];
+                if (line === "/e dance") {
+                    bot.anim = "dance";
+                    bot.decisionTimer = 4;
+                } else {
+                    bot.chatText = line;
+                    bot.chatExpiry = Date.now() + 5500;
+                    appendChatMessage(bot.username, line);
+                }
+            }, 850);
+        }
+
+        document.getElementById("lobby-add-bot-btn").addEventListener("click", spawnBot);
+        document.getElementById("hud-add-bot-btn").addEventListener("click", spawnBot);
+        document.getElementById("lobby-clear-bots-btn").addEventListener("click", clearBots);
+        document.getElementById("hud-clear-bots-btn").addEventListener("click", clearBots);
+
+        // =====================================================================
+        // 12. HOTBAR TOOLS, BUILDING, CHAT & LEADERBOARD
+        // =====================================================================
+        const toolHint = document.getElementById("tool-hint");
+        const buildColorBar = document.getElementById("build-color-bar");
+
+        function triggerEmote(name) {
+            state.currentEmote = name;
+            state.emoteTimer = 5.0;
+            SoundFX.playClick();
+            networkManager.broadcastState(true);
+        }
+
+        function selectSlot(slot) {
+            SoundFX.unlock();
+            SoundFX.playClick();
+            if (slot === 4) { triggerEmote("dance"); return; }
+            if (slot === 5) { triggerEmote("wave"); return; }
+            if (slot === 6) { triggerEmote("cheer"); return; }
+
+            state.activeSlot = slot;
+            document.querySelectorAll(".hotbar-slot").forEach((btn) => {
+                btn.classList.toggle("active", Number(btn.dataset.slot) === slot);
+            });
+
+            if (slot === 2) {
+                toolHint.textContent = "Click on the Baseplate to place a synced brick!";
+                toolHint.classList.remove("hidden");
+                buildColorBar.classList.remove("hidden");
+            } else if (slot === 3) {
+                toolHint.textContent = "Click a placed brick to delete it!";
+                toolHint.classList.remove("hidden");
+                buildColorBar.classList.add("hidden");
+            } else {
+                toolHint.classList.add("hidden");
+                buildColorBar.classList.add("hidden");
+            }
+        }
+
+        document.querySelectorAll(".hotbar-slot").forEach((btn) => {
+            btn.addEventListener("click", () => selectSlot(Number(btn.dataset.slot)));
+        });
+
+        document.querySelectorAll(".bcolor-btn").forEach((btn) => {
+            btn.addEventListener("click", () => {
+                SoundFX.unlock();
+                SoundFX.playClick();
+                state.buildColor = btn.dataset.bcolor;
+                document.querySelectorAll(".bcolor-btn").forEach((b) => b.classList.remove("selected"));
+                btn.classList.add("selected");
+            });
+        });
+
+        function placeSyncedBlock(x, y, z, color, broadcast = true) {
+            const gx = Math.round(x / 2) * 2;
+            const gy = Math.max(1, Math.round(y / 2) * 2);
+            const gz = Math.round(z / 2) * 2;
+            const id = "blk_" + gx + "_" + gy + "_" + gz;
+            if (!state.blocks.has(id)) {
+                const col = {
+                    id,
+                    x: gx,
+                    y: gy,
+                    z: gz,
+                    color: color || "#ef4444",
+                    minX: gx - 2, maxX: gx + 2,
+                    minY: gy - 1, maxY: gy + 1,
+                    minZ: gz - 2, maxZ: gz + 2,
+                    type: "solid",
+                    mesh: createBlockMesh3D(gx, gy, gz, 4, 2, 4, color || "#ef4444", "solid", id)
+                };
+                worldColliders.push(col);
+                state.blocks.set(id, col);
+            }
+            if (broadcast) {
+                networkManager.publish("place_block", {
+                    uid: state.userId,
+                    blockId: id,
+                    x: gx,
+                    y: gy,
+                    z: gz,
+                    color: color || "#ef4444"
+                });
+            }
+        }
+
+        function removeSyncedBlock(id, broadcast = true) {
+            const col = state.blocks.get(id);
+            if (!col) return;
+            if (col.mesh && scene3D) {
+                scene3D.remove(col.mesh);
+                const mIdx = clickableMeshes3D.indexOf(col.mesh);
+                if (mIdx !== -1) clickableMeshes3D.splice(mIdx, 1);
+            }
+            const cIdx = worldColliders.indexOf(col);
+            if (cIdx !== -1) worldColliders.splice(cIdx, 1);
+            state.blocks.delete(id);
+            if (broadcast) {
+                networkManager.publish("delete_block", { uid: state.userId, blockId: id });
+            }
+        }
+
+        let pointerDownPt = { x: 0, y: 0 };
+        function handleCanvasPointerDown(e) {
+            pointerDownPt = { x: e.clientX, y: e.clientY };
+        }
+        function handleCanvasPointerUp(e) {
+            if (!state.inGame || e.button !== 0) return;
+            if (Math.hypot(e.clientX - pointerDownPt.x, e.clientY - pointerDownPt.y) > 6) return;
+            if (state.activeSlot !== 2 && state.activeSlot !== 3) return;
+
+            if (state.renderMode === "3d" && typeof THREE !== "undefined" && camera3D) {
+                const raycaster = new THREE.Raycaster();
+                const ptr = new THREE.Vector2(
+                    (e.clientX / window.innerWidth) * 2 - 1,
+                    -(e.clientY / window.innerHeight) * 2 + 1
+                );
+                raycaster.setFromCamera(ptr, camera3D);
+                const hits = raycaster.intersectObjects(clickableMeshes3D, false);
+                if (hits.length === 0) return;
+                const hit = hits[0];
+                if (state.activeSlot === 2 && hit.face) {
+                    const pt = hit.point.clone().add(hit.face.normal.clone().multiplyScalar(1.0));
+                    placeSyncedBlock(pt.x, pt.y, pt.z, state.buildColor, true);
+                    SoundFX.playBuild();
+                } else if (state.activeSlot === 3 && hit.object && hit.object.userData.blockId) {
+                    removeSyncedBlock(hit.object.userData.blockId, true);
+                    SoundFX.playDelete();
+                }
+            } else {
+                // 2D fallback build/delete right in front of player
+                const fx = physics.pos.x + Math.sin(physics.yaw) * 4;
+                const fz = physics.pos.z + Math.cos(physics.yaw) * 4;
+                if (state.activeSlot === 2) {
+                    placeSyncedBlock(fx, 1, fz, state.buildColor, true);
+                    SoundFX.playBuild();
+                } else if (state.activeSlot === 3) {
+                    const gx = Math.round(fx / 2) * 2;
+                    const gz = Math.round(fz / 2) * 2;
+                    const id = "blk_" + gx + "_1_" + gz;
+                    if (state.blocks.has(id)) {
+                        removeSyncedBlock(id, true);
+                        SoundFX.playDelete();
+                    }
+                }
+            }
+        }
+
+        [canvas3D, canvas2D].forEach((c) => {
+            c.addEventListener("pointerdown", handleCanvasPointerDown);
+            c.addEventListener("pointerup", handleCanvasPointerUp);
+        });
+
+        // Chat System
+        const chatMessagesEl = document.getElementById("chat-messages");
+        const chatForm = document.getElementById("chat-form");
+        const chatInput = document.getElementById("chat-input");
+
+        function appendChatMessage(sender, text, isSystem = false) {
+            const row = document.createElement("div");
+            if (isSystem) {
+                row.style.color = "#fcd34d";
+                row.style.fontWeight = "600";
+                row.textContent = "[System] " + text;
+            } else {
+                const nameEl = document.createElement("span");
+                nameEl.style.fontWeight = "700";
+                nameEl.style.color = "#7dd3fc";
+                nameEl.style.marginRight = "5px";
+                nameEl.textContent = "[" + sender + "]:";
+
+                const bodyEl = document.createElement("span");
+                bodyEl.style.color = "#ffffff";
+                bodyEl.textContent = text;
+
+                row.appendChild(nameEl);
+                row.appendChild(bodyEl);
+            }
+            chatMessagesEl.appendChild(row);
+            chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
+        }
+
+        function handleChatSubmit(rawText) {
+            const clean = rawText.trim();
+            if (!clean) return;
+            SoundFX.unlock();
+
+            if (clean.toLowerCase().startsWith("/e ")) {
+                const emote = clean.slice(3).trim().toLowerCase();
+                if (["dance", "wave", "cheer"].includes(emote)) {
+                    triggerEmote(emote);
+                    appendChatMessage("System", "Playing emote: " + emote, true);
+                    return;
+                }
+            }
+
+            state.lastChatBubble = clean;
+            state.lastChatTime = Date.now();
+            appendChatMessage(state.username, clean);
+            networkManager.publish("chat", { uid: state.userId, username: state.username, text: clean });
+            networkManager.broadcastState(true);
+            triggerBotReply();
+        }
+
+        chatForm.addEventListener("submit", (e) => {
+            e.preventDefault();
+            const val = chatInput.value;
+            chatInput.value = "";
+            chatInput.blur();
+            handleChatSubmit(val);
+        });
+
+        document.getElementById("chat-toggle-btn").addEventListener("click", () => {
+            chatPanel.classList.toggle("hidden");
+        });
+
+        // Leaderboard
+        const leaderboardList = document.getElementById("leaderboard-list");
+        const playerCountBadge = document.getElementById("player-count-badge");
+
+        function updateLeaderboardUI() {
+            const remotes = Array.from(state.players.values()).filter((p) => !p.isBot);
+            const bots = Array.from(state.players.values()).filter((p) => p.isBot);
+            const totalCount = 1 + remotes.length;
+
+            if (playerCountBadge) playerCountBadge.textContent = String(totalCount);
+
+            const hasBots = bots.length > 0;
+            document.getElementById("lobby-clear-bots-btn").classList.toggle("hidden", !hasBots);
+            document.getElementById("hud-clear-bots-btn").classList.toggle("hidden", !hasBots);
+
+            leaderboardList.innerHTML = "";
+            const rows = [
+                { name: state.username + " (You)", dot: "#4ade80", ping: "12ms" },
+                ...remotes.map((p) => ({ name: p.username, dot: "#38bdf8", ping: (p.ping || 35) + "ms" })),
+                ...bots.map((b) => ({ name: b.username, dot: "#fbbf24", ping: "AI" }))
+            ];
+
+            rows.forEach((r) => {
+                const row = document.createElement("div");
+                row.className = "leaderboard-row";
+
+                const left = document.createElement("div");
+                left.style.display = "flex";
+                left.style.alignItems = "center";
+                left.style.gap = "7px";
+                left.style.minWidth = "0";
+
+                const dot = document.createElement("span");
+                dot.style.width = "7px";
+                dot.style.height = "7px";
+                dot.style.borderRadius = "50%";
+                dot.style.background = r.dot;
+                dot.style.flexShrink = "0";
+
+                const nameSpan = document.createElement("span");
+                nameSpan.style.overflow = "hidden";
+                nameSpan.style.textOverflow = "ellipsis";
+                nameSpan.style.whiteSpace = "nowrap";
+                nameSpan.style.fontWeight = "600";
+                nameSpan.textContent = r.name;
+
+                const pingSpan = document.createElement("span");
+                pingSpan.style.fontSize = "10px";
+                pingSpan.style.color = "#94a3b8";
+                pingSpan.style.fontFamily = "monospace";
+                pingSpan.textContent = r.ping;
+
+                left.appendChild(dot);
+                left.appendChild(nameSpan);
+                row.appendChild(left);
+                row.appendChild(pingSpan);
+                leaderboardList.appendChild(row);
+            });
+        }
+
+        // Floating Overhead Nametags & Speech Bubbles (Works in Both 3D and 2D!)
+        const labelsLayer = document.getElementById("labels-layer");
+        const localBubbleEl = document.createElement("div");
+        localBubbleEl.className = "nametag-container";
+        labelsLayer.appendChild(localBubbleEl);
+
+        function escapeText(s) {
+            const div = document.createElement("div");
+            div.textContent = String(s || "");
+            return div.innerHTML;
+        }
+
+        function projectScreenCoords(wx, wy, wz) {
+            if (state.renderMode === "3d" && typeof THREE !== "undefined" && camera3D) {
+                const v = new THREE.Vector3(wx, wy, wz).project(camera3D);
+                if (v.z >= 1) return null;
+                return {
+                    x: (v.x * 0.5 + 0.5) * window.innerWidth,
+                    y: (-v.y * 0.5 + 0.5) * window.innerHeight
+                };
+            }
+            const yaw = state.inGame ? camState.yaw : performance.now() * 0.00025;
+            const p = isoProject(wx, wy, wz, { x: physics.pos.x, z: physics.pos.z }, yaw);
+            return { x: p.x, y: p.y };
+        }
+
+        function projectLabel(el, wx, wy, wz, htmlContent, cacheKey) {
+            const pt = projectScreenCoords(wx, wy, wz);
+            if (!pt) {
+                el.style.display = "none";
+                return;
+            }
+            el.style.display = "flex";
+            el.style.transform = "translate(" + pt.x + "px, " + pt.y + "px) translate(-50%, -100%)";
+            if (el.dataset.key !== cacheKey) {
+                el.dataset.key = cacheKey;
+                el.innerHTML = htmlContent;
+            }
+        }
+
+        function updateFloatingLabels() {
+            const now = Date.now();
+            if (state.lastChatBubble && now - state.lastChatTime < 6500 && camState.distance > 3.2) {
+                projectLabel(
+                    localBubbleEl,
+                    physics.pos.x,
+                    physics.pos.y + 5.75,
+                    physics.pos.z,
+                    '<div class="chat-bubble">' + escapeText(state.lastChatBubble) + "</div>",
+                    "local_" + state.lastChatBubble
+                );
+            } else {
+                localBubbleEl.style.display = "none";
+            }
+
+            for (const p of state.players.values()) {
+                if (!p.labelEl) {
+                    p.labelEl = document.createElement("div");
+                    p.labelEl.className = "nametag-container";
+                    labelsLayer.appendChild(p.labelEl);
+                }
+                const activeChat = now > (p.chatExpiry || 0) ? "" : p.chatText;
+                const posSource = p.mesh ? p.mesh.position : p.pos;
+                const html =
+                    (activeChat ? '<div class="chat-bubble">' + escapeText(activeChat) + "</div>" : "") +
+                    '<div class="player-tag">' + escapeText(p.username) + "</div>";
+                projectLabel(
+                    p.labelEl,
+                    posSource.x,
+                    posSource.y + 5.65,
+                    posSource.z,
+                    html,
+                    p.username + "|" + activeChat
+                );
+            }
+        }
+
+        // =====================================================================
+        // 13. MENU, CAMERA & INPUT CONTROLS
+        // =====================================================================
+        document.getElementById("menu-btn").addEventListener("click", () => {
+            SoundFX.unlock();
+            SoundFX.playClick();
+            document.getElementById("lobby-screen").classList.remove("hidden");
+        });
+
+        document.getElementById("respawn-btn").addEventListener("click", () => {
+            SoundFX.unlock();
+            respawnPlayer(true);
+        });
+
+        const camState = {
+            yaw: 0,
+            pitch: 0.35,
+            distance: 13,
+            dragging: false,
+            lastX: 0,
+            lastY: 0
+        };
+
+        [canvas3D, canvas2D].forEach((c) => {
+            c.addEventListener("contextmenu", (e) => e.preventDefault());
+            c.addEventListener("mousedown", (e) => {
+                if (e.button === 2 || (e.button === 0 && state.activeSlot === 1)) {
+                    camState.dragging = true;
+                    camState.lastX = e.clientX;
+                    camState.lastY = e.clientY;
+                }
+            });
+            c.addEventListener("wheel", (e) => {
+                camState.distance = Math.max(2.2, Math.min(34, camState.distance + e.deltaY * 0.012));
+            }, { passive: true });
+        });
+
+        window.addEventListener("mouseup", () => { camState.dragging = false; });
+        window.addEventListener("mousemove", (e) => {
+            if (!camState.dragging) return;
+            const dx = e.clientX - camState.lastX;
+            const dy = e.clientY - camState.lastY;
+            camState.lastX = e.clientX;
+            camState.lastY = e.clientY;
+            camState.yaw -= dx * 0.0065;
+            camState.pitch = Math.max(-0.2, Math.min(1.35, camState.pitch + dy * 0.0065));
+        });
+
+        let touchCamId = null;
+        [canvas3D, canvas2D].forEach((c) => {
+            c.addEventListener("touchstart", (e) => {
+                for (const t of e.changedTouches) {
+                    if (t.clientX > window.innerWidth * 0.35 && touchCamId === null) {
+                        touchCamId = t.identifier;
+                        camState.lastX = t.clientX;
+                        camState.lastY = t.clientY;
+                    }
+                }
+            }, { passive: true });
+            c.addEventListener("touchmove", (e) => {
+                for (const t of e.changedTouches) {
+                    if (t.identifier === touchCamId) {
+                        const dx = t.clientX - camState.lastX;
+                        const dy = t.clientY - camState.lastY;
+                        camState.lastX = t.clientX;
+                        camState.lastY = t.clientY;
+                        camState.yaw -= dx * 0.008;
+                        camState.pitch = Math.max(-0.2, Math.min(1.35, camState.pitch + dy * 0.008));
+                    }
+                }
+            }, { passive: true });
+            c.addEventListener("touchend", (e) => {
+                for (const t of e.changedTouches) {
+                    if (t.identifier === touchCamId) touchCamId = null;
+                }
+            });
+        });
+
+        const keysPressed = {};
+        window.addEventListener("keydown", (e) => {
+            const activeTag = document.activeElement ? document.activeElement.tagName : "";
+            if (activeTag === "INPUT" || activeTag === "TEXTAREA") return;
+            if (!state.inGame) return;
+
+            if (e.key === "/") {
+                e.preventDefault();
+                chatInput.focus();
+                return;
+            }
+            keysPressed[e.code] = true;
+
+            if (e.code === "Space" && physics.grounded) {
+                SoundFX.unlock();
+                physics.vel.y = 17.5;
+                physics.grounded = false;
+                state.currentEmote = null;
+                SoundFX.playJump();
+            }
+            if (e.code === "KeyR") respawnPlayer(true);
+            if (e.code === "Digit1") selectSlot(1);
+            if (e.code === "Digit2") selectSlot(2);
+            if (e.code === "Digit3") selectSlot(3);
+            if (e.code === "Digit4") selectSlot(4);
+            if (e.code === "Digit5") selectSlot(5);
+            if (e.code === "Digit6") selectSlot(6);
+        });
+        window.addEventListener("keyup", (e) => { keysPressed[e.code] = false; });
+
+        // Touch Joystick
+        const joyInput = { x: 0, z: 0 };
+        const joyZone = document.getElementById("joystick-zone");
+        const joyKnob = document.getElementById("joystick-knob");
+        let joyTouchId = null;
+
+        function updateJoystick(cx, cy) {
+            const rect = joyZone.getBoundingClientRect();
+            const midX = rect.left + rect.width / 2;
+            const midY = rect.top + rect.height / 2;
+            const maxR = rect.width / 2 - 16;
+            let dx = cx - midX;
+            let dy = cy - midY;
+            const dist = Math.hypot(dx, dy);
+            if (dist > maxR) {
+                dx = (dx / dist) * maxR;
+                dy = (dy / dist) * maxR;
+            }
+            joyKnob.style.transform = "translate(" + dx + "px, " + dy + "px)";
+            joyInput.x = dx / maxR;
+            joyInput.z = dy / maxR;
+        }
+
+        joyZone.addEventListener("touchstart", (e) => {
+            e.preventDefault();
+            const t = e.changedTouches[0];
+            joyTouchId = t.identifier;
+            updateJoystick(t.clientX, t.clientY);
+        }, { passive: false });
+        joyZone.addEventListener("touchmove", (e) => {
+            e.preventDefault();
+            for (const t of e.changedTouches) {
+                if (t.identifier === joyTouchId) updateJoystick(t.clientX, t.clientY);
+            }
+        }, { passive: false });
+        joyZone.addEventListener("touchend", (e) => {
+            for (const t of e.changedTouches) {
+                if (t.identifier === joyTouchId) {
+                    joyTouchId = null;
+                    joyInput.x = 0;
+                    joyInput.z = 0;
+                    joyKnob.style.transform = "translate(0px, 0px)";
+                }
+            }
+        });
+
+        document.getElementById("mobile-jump-btn").addEventListener("touchstart", (e) => {
+            e.preventDefault();
+            if (physics.grounded) {
+                SoundFX.unlock();
+                physics.vel.y = 17.5;
+                physics.grounded = false;
+                state.currentEmote = null;
+                SoundFX.playJump();
+            }
+        }, { passive: false });
+
+        // =====================================================================
+        // 14. PHYSICS, AI BOTS & MAIN RENDER LOOP
+        // =====================================================================
+        function stepPhysics(dt) {
+            let fwd = 0;
+            let right = 0;
+            if (keysPressed["KeyW"] || keysPressed["ArrowUp"]) fwd += 1;
+            if (keysPressed["KeyS"] || keysPressed["ArrowDown"]) fwd -= 1;
+            if (keysPressed["KeyD"] || keysPressed["ArrowRight"]) right += 1;
+            if (keysPressed["KeyA"] || keysPressed["ArrowLeft"]) right -= 1;
+
+            if (Math.abs(joyInput.x) > 0.1 || Math.abs(joyInput.z) > 0.1) {
+                right += joyInput.x;
+                fwd -= joyInput.z;
+            }
+
+            const sprinting = Boolean(keysPressed["ShiftLeft"] || keysPressed["ShiftRight"]);
+            const speed = sprinting ? 21 : 14.5;
+            const len = Math.hypot(fwd, right);
+
+            if (len > 0.01) {
+                state.currentEmote = null;
+                const nf = fwd / Math.max(1, len);
+                const nr = right / Math.max(1, len);
+                const sinY = Math.sin(camState.yaw);
+                const cosY = Math.cos(camState.yaw);
+
+                const vx = (-sinY * nf + cosY * nr) * speed;
+                const vz = (-cosY * nf - sinY * nr) * speed;
+                physics.vel.x = vx;
+                physics.vel.z = vz;
+
+                const targetYaw = Math.atan2(vx, vz);
+                let diff = targetYaw - physics.yaw;
+                while (diff < -Math.PI) diff += Math.PI * 2;
+                while (diff > Math.PI) diff -= Math.PI * 2;
+                physics.yaw += diff * Math.min(1, dt * 14);
+            } else {
+                const damp = Math.pow(0.001, dt);
+                physics.vel.x *= damp;
+                physics.vel.z *= damp;
+            }
+
+            physics.vel.y -= 44 * dt;
+
+            const halfW = 0.85;
+            const halfD = 0.85;
+            const height = 5.2;
+
+            physics.pos.x += physics.vel.x * dt;
+            for (const c of worldColliders) {
+                if (physics.pos.y + height > c.minY + 0.1 && physics.pos.y < c.maxY - 0.1) {
+                    if (physics.pos.x + halfW > c.minX && physics.pos.x - halfW < c.maxX &&
+                        physics.pos.z + halfD > c.minZ && physics.pos.z - halfD < c.maxZ) {
+                        if (c.type === "kill") { respawnPlayer(true); return; }
+                        if (physics.vel.x > 0) physics.pos.x = c.minX - halfW;
+                        else if (physics.vel.x < 0) physics.pos.x = c.maxX + halfW;
+                    }
+                }
+            }
+
+            physics.pos.z += physics.vel.z * dt;
+            for (const c of worldColliders) {
+                if (physics.pos.y + height > c.minY + 0.1 && physics.pos.y < c.maxY - 0.1) {
+                    if (physics.pos.x + halfW > c.minX && physics.pos.x - halfW < c.maxX &&
+                        physics.pos.z + halfD > c.minZ && physics.pos.z - halfD < c.maxZ) {
+                        if (c.type === "kill") { respawnPlayer(true); return; }
+                        if (physics.vel.z > 0) physics.pos.z = c.minZ - halfD;
+                        else if (physics.vel.z < 0) physics.pos.z = c.maxZ + halfD;
+                    }
+                }
+            }
+
+            physics.pos.y += physics.vel.y * dt;
+            physics.grounded = false;
+            for (const c of worldColliders) {
+                if (physics.pos.x + halfW > c.minX && physics.pos.x - halfW < c.maxX &&
+                    physics.pos.z + halfD > c.minZ && physics.pos.z - halfD < c.maxZ) {
+                    if (physics.vel.y <= 0 && physics.pos.y <= c.maxY && physics.pos.y >= c.minY - 0.5) {
+                        if (c.type === "kill") { respawnPlayer(true); return; }
+                        if (c.type === "jumppad") {
+                            physics.pos.y = c.maxY;
+                            physics.vel.y = 32;
+                            physics.grounded = false;
+                            SoundFX.playBoing();
+                            return;
+                        }
+                        physics.pos.y = c.maxY;
+                        physics.vel.y = 0;
+                        physics.grounded = true;
+                    } else if (physics.vel.y > 0 && physics.pos.y + height >= c.minY && physics.pos.y < c.minY) {
+                        physics.pos.y = c.minY - height;
+                        physics.vel.y = 0;
+                    }
+                }
+            }
+
+            if (physics.pos.y < -22) {
+                respawnPlayer(true);
+                return;
+            }
+
+            if (state.currentEmote) {
+                state.emoteTimer -= dt;
+                if (state.emoteTimer <= 0) state.currentEmote = null;
+            }
+
+            const horiz = Math.hypot(physics.vel.x, physics.vel.z);
+            if (!physics.grounded) {
+                physics.animState = "jump";
+            } else if (horiz > 1.2) {
+                physics.animState = sprinting ? "run" : "walk";
+            } else if (state.currentEmote) {
+                physics.animState = state.currentEmote;
+            } else {
+                physics.animState = "idle";
+            }
+
+            if (localPlayerMesh3D) {
+                localPlayerMesh3D.position.set(physics.pos.x, physics.pos.y, physics.pos.z);
+                localPlayerMesh3D.rotation.y = physics.yaw;
+            }
+        }
+
+        function stepPlayersAndBots(dt) {
+            for (const p of state.players.values()) {
+                if (p.isBot) {
+                    p.decisionTimer -= dt;
+                    const dist = Math.hypot(p.goalPos.x - p.pos.x, p.goalPos.z - p.pos.z);
+                    if (dist < 1.5 || p.decisionTimer <= 0) {
+                        p.decisionTimer = 3 + Math.random() * 4;
+                        if (Math.random() < 0.35) {
+                            p.anim = ["idle", "dance", "wave"][Math.floor(Math.random() * 3)];
+                            p.goalPos.x = p.pos.x;
+                            p.goalPos.z = p.pos.z;
+                        } else {
+                            p.anim = "walk";
+                            p.goalPos.x = (Math.random() - 0.5) * 42;
+                            p.goalPos.z = (Math.random() - 0.5) * 42;
+                        }
+                    }
+                    if (p.anim === "walk") {
+                        const dx = p.goalPos.x - p.pos.x;
+                        const dz = p.goalPos.z - p.pos.z;
+                        const dLen = Math.hypot(dx, dz);
+                        if (dLen > 0.2) {
+                            p.pos.x += (dx / dLen) * 8.5 * dt;
+                            p.pos.z += (dz / dLen) * 8.5 * dt;
+                            p.targetYaw = Math.atan2(dx, dz);
+                        }
+                    }
+                    if (p.mesh) {
+                        p.mesh.position.set(p.pos.x, p.pos.y, p.pos.z);
+                        p.mesh.rotation.y += (p.targetYaw - p.mesh.rotation.y) * Math.min(1, dt * 10);
+                        animateR6Character3D(p.mesh, p.anim, dt);
+                    }
+                } else {
+                    const blend = Math.min(1, dt * 14);
+                    p.pos.x += (p.targetPos.x - p.pos.x) * blend;
+                    p.pos.y += (p.targetPos.y - p.pos.y) * blend;
+                    p.pos.z += (p.targetPos.z - p.pos.z) * blend;
+                    if (p.mesh) {
+                        p.mesh.position.set(p.pos.x, p.pos.y, p.pos.z);
+                        let diff = p.targetYaw - p.mesh.rotation.y;
+                        while (diff < -Math.PI) diff += Math.PI * 2;
+                        while (diff > Math.PI) diff -= Math.PI * 2;
+                        p.mesh.rotation.y += diff * blend;
+                        animateR6Character3D(p.mesh, p.anim, dt);
+                    }
+                }
+            }
+        }
+
+        function stepParticles(dt) {
+            if (state.renderMode !== "3d" || !scene3D) return;
+            for (let i = state.particles.length - 1; i >= 0; i--) {
+                const pt = state.particles[i];
+                pt.life -= dt;
+                pt.vel.y -= 32 * dt;
+                pt.mesh.position.x += pt.vel.x * dt;
+                pt.mesh.position.y += pt.vel.y * dt;
+                pt.mesh.position.z += pt.vel.z * dt;
+                pt.mesh.rotation.x += pt.rotVel.x * dt;
+                pt.mesh.rotation.y += pt.rotVel.y * dt;
+                pt.mesh.scale.setScalar(Math.max(0.01, pt.life));
+                if (pt.life <= 0) {
+                    scene3D.remove(pt.mesh);
+                    state.particles.splice(i, 1);
+                }
+            }
+        }
+
+        function stepCamera3D() {
+            if (state.renderMode !== "3d" || !camera3D) return;
+            const fx = physics.pos.x;
+            const fy = physics.pos.y + 4.2;
+            const fz = physics.pos.z;
+
+            if (!state.inGame) {
+                const t = performance.now() * 0.0004;
+                camera3D.position.set(fx + Math.sin(t) * 14, fy + 3.5, fz + Math.cos(t) * 14);
+                camera3D.lookAt(fx, fy, fz);
+                return;
+            }
+
+            if (localPlayerMesh3D) {
+                localPlayerMesh3D.visible = camState.distance >= 3.0;
+            }
+
+            const ox = Math.sin(camState.yaw) * Math.cos(camState.pitch) * camState.distance;
+            const oy = Math.sin(camState.pitch) * camState.distance;
+            const oz = Math.cos(camState.yaw) * Math.cos(camState.pitch) * camState.distance;
+
+            camera3D.position.set(fx + ox, Math.max(0.8, fy + oy), fz + oz);
+            camera3D.lookAt(fx, fy, fz);
+        }
+
+        let lastFrameTime = performance.now();
+
+        function mainLoop(now) {
+            requestAnimationFrame(mainLoop);
+            const dt = Math.min(0.05, Math.max(0.001, (now - lastFrameTime) / 1000));
+            lastFrameTime = now;
+
+            if (state.renderMode === "3d" && cloudGroup3D) {
+                cloudGroup3D.children.forEach((c) => {
+                    c.position.x += 0.8 * dt;
+                    if (c.position.x > 130) c.position.x = -130;
+                });
+            }
+
+            if (state.inGame) {
+                stepPhysics(dt);
+                networkManager.broadcastState(false);
+                networkManager.pruneStalePlayers();
+            }
+
+            if (state.renderMode === "3d" && localPlayerMesh3D) {
+                animateR6Character3D(localPlayerMesh3D, physics.animState, dt);
+            }
+
+            stepPlayersAndBots(dt);
+            stepParticles(dt);
+
+            if (state.renderMode === "3d" && renderer3D && scene3D && camera3D) {
+                stepCamera3D();
+                renderer3D.render(scene3D, camera3D);
+            } else {
+                render2DFallbackFrame(now);
+            }
+
+            updateFloatingLabels();
+        }
+
+        window.addEventListener("resize", () => {
+            if (state.renderMode === "3d" && renderer3D && camera3D) {
+                camera3D.aspect = window.innerWidth / window.innerHeight;
+                camera3D.updateProjectionMatrix();
+                renderer3D.setSize(window.innerWidth, window.innerHeight);
+            }
+        });
+
+        // =====================================================================
+        // 15. IMMEDIATE BOOTSTRAP (ZERO BLOCKING)
+        // =====================================================================
+        updateLeaderboardUI();
+        requestAnimationFrame(mainLoop);
+
+        // Load Three.js & MQTT asynchronously without ever blocking initial paint
+        loadScriptNonBlocking([
+            "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js",
+            "https://unpkg.com/three@0.128.0/build/three.min.js"
+        ], 4500).then((ok) => {
+            if (ok) tryUpgradeTo3DWebGL();
+        });
+
+        loadScriptNonBlocking([
+            "https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js",
+            "https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js"
+        ], 4500).then((ok) => {
+            if (ok && state.inGame && !state.customWsUrl) {
+                networkManager.connectGlobalMqtt(0);
+            }
+        });
+    </script>
+</body>
+</html>
