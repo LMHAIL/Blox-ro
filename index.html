@@ -910,6 +910,14 @@
                     </p>
                 </div>
 
+                <!-- Experience #02: selectable alternate game inside BLOX-RO -->
+                <div id="realistic-experience-card" style="margin-top:12px;border:1px solid #64748b;border-radius:14px;overflow:hidden;background:linear-gradient(135deg,#203b32,#647b63);color:white;padding:14px;">
+                    <div style="display:flex;gap:12px;align-items:center;">
+                        <div style="flex:1"><span style="font-size:10px;font-weight:900;letter-spacing:1px;color:#d1fae5">EXPERIENCE #02</span><h2 style="margin:4px 0;font-size:20px">Greenfield • Realistic</h2><p style="font-size:12px;line-height:1.45;margin:0;color:#e5e7eb">A calmer, detailed Roblox-style neighborhood with roads, trees, homes, natural lighting and more grounded movement.</p></div>
+                    </div>
+                    <button type="button" id="select-realistic-btn" class="btn btn-sm" style="margin-top:12px;width:100%;background:#e2e8f0;color:#0f172a;font-weight:800">Select Greenfield</button>
+                </div>
+
                 <!-- Primary One-Click Server Create / Join Button -->
                 <button type="button" id="play-btn" class="btn btn-play">Play Baseplate</button>
 
@@ -1340,7 +1348,8 @@
             lastChatTime: 0,
             players: new Map(),
             blocks: new Map(),
-            particles: []
+            particles: [],
+            experience: "baseplate"
         };
 
         // =====================================================================
@@ -1435,6 +1444,7 @@
 
         let renderer3D = null;
         let scene3D = null;
+        const greenfieldSwayMeshes = [];
         let camera3D = null;
         let cloudGroup3D = null;
         let localPlayerMesh3D = null;
@@ -1704,6 +1714,7 @@
                 u.rightLegPivot.rotation.x = swing;
                 u.torso.position.y = 3.0 + Math.abs(Math.cos(t * freq)) * 0.12;
                 u.headGroup.rotation.z = Math.sin(t * freq * 0.5) * 0.04;
+                u.torso.rotation.z = Math.sin(t * freq) * (animState === "run" ? 0.055 : 0.025);
             } else if (animState === "dance") {
                 u.leftArmPivot.rotation.x = Math.sin(t * 8) * 0.8 - 1.2;
                 u.rightArmPivot.rotation.x = -Math.sin(t * 8) * 0.8 - 1.2;
@@ -1739,6 +1750,8 @@
                 u.headGroup.rotation.y = lerp(u.headGroup.rotation.y, Math.sin(t * 1.1) * 0.08, dt * 5);
                 u.headGroup.rotation.z = lerp(u.headGroup.rotation.z, 0, dt * 8);
                 u.torso.position.y = 3.0 + Math.sin(t * 2.5) * 0.04;
+                u.torso.rotation.z = Math.sin(t * 1.7) * 0.025;
+                u.headGroup.rotation.x = Math.sin(t * 1.15) * 0.025;
             }
         }
 
@@ -1797,6 +1810,68 @@
                 plateMesh.receiveShadow = true;
                 scene3D.add(plateMesh);
                 clickableMeshes3D.push(plateMesh);
+
+                // Greenfield alternate experience: a more natural neighborhood dressing
+                if (state.experience === "greenfield") {
+                    scene3D.background = new THREE.Color("#a8c9df");
+                    scene3D.fog = new THREE.FogExp2("#b9d0d9", 0.0024);
+                    const roadMat = new THREE.MeshStandardMaterial({color:0x30353a,roughness:0.94});
+                    const curbMat = new THREE.MeshStandardMaterial({color:0xb8b8b2,roughness:1});
+                    const road = new THREE.Mesh(new THREE.BoxGeometry(12,0.12,210),roadMat); road.position.set(0,0.06,0); road.receiveShadow=true; scene3D.add(road);
+                    for(let side of [-1,1]) { const curb=new THREE.Mesh(new THREE.BoxGeometry(1,0.28,210),curbMat); curb.position.set(side*6.7,0.14,0); curb.receiveShadow=true; scene3D.add(curb); }
+                    const trunkMat=new THREE.MeshStandardMaterial({color:0x715039,roughness:1}), leafMat=new THREE.MeshStandardMaterial({color:0x477b49,roughness:0.95});
+                    for(let i=0;i<28;i++){ const z=-100+i*7.4; for(let side of [-1,1]) { const x=side*(13+((i%3)*2)); const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.35,.48,4,7),trunkMat); trunk.position.set(x,2,z); trunk.castShadow=true; scene3D.add(trunk); const crown=new THREE.Mesh(new THREE.SphereGeometry(2.6,8,7),leafMat); crown.position.set(x,5,z); crown.scale.set(1.15,1.25,1); crown.castShadow=true; scene3D.add(crown); } }
+                    const houseMat=new THREE.MeshStandardMaterial({color:0xd8d0bd,roughness:.85}), roofMat=new THREE.MeshStandardMaterial({color:0x514b45,roughness:.9}), windowMat=new THREE.MeshStandardMaterial({color:0x9ac7d7,metalness:.18,roughness:.25});
+                    for(let i=0;i<8;i++){ const side=i%2?1:-1, z=-75+Math.floor(i/2)*38, x=side*24; const house=new THREE.Mesh(new THREE.BoxGeometry(14,8,16),houseMat); house.position.set(x,4,z); house.castShadow=true; house.receiveShadow=true; scene3D.add(house); const roof=new THREE.Mesh(new THREE.ConeGeometry(11,5,4),roofMat); roof.rotation.y=Math.PI/4; roof.position.set(x,9,z); roof.castShadow=true; scene3D.add(roof); for(let wx of [-4,4]) { const win=new THREE.Mesh(new THREE.BoxGeometry(2.2,2.3,.12),windowMat); win.position.set(x+wx,4.5,z+8.08); scene3D.add(win); } }
+                    const parkMat=new THREE.MeshStandardMaterial({color:0x6c9b5d,roughness:1}); const park=new THREE.Mesh(new THREE.BoxGeometry(25,.16,25),parkMat); park.position.set(48,.08,48); park.receiveShadow=true; scene3D.add(park);
+                    // Greenfield realism pass: street furniture, layered architecture and yard details
+                    const asphaltDetail=new THREE.MeshStandardMaterial({color:0x62676b,roughness:1});
+                    const laneDashMat=new THREE.MeshStandardMaterial({color:0xe8e1b5,roughness:0.9});
+                    for(let z=-96;z<100;z+=18){const dash=new THREE.Mesh(new THREE.BoxGeometry(.22,.035,5),laneDashMat);dash.position.set(0,.13,z);dash.receiveShadow=true;scene3D.add(dash);}
+                    const sidewalk2Mat=new THREE.MeshStandardMaterial({color:0xc4c2b9,roughness:.95});
+                    for(const side of [-1,1]){const walk=new THREE.Mesh(new THREE.BoxGeometry(3,.22,210),sidewalk2Mat);walk.position.set(side*9.2,.12,0);walk.receiveShadow=true;scene3D.add(walk);}
+                    // House facades receive porch, door, window trim and pitched roof details.
+                    for(let i=0;i<8;i++){const side=i%2?1:-1,z=-75+Math.floor(i/2)*38,x=side*24;
+                        const doorMat=new THREE.MeshStandardMaterial({color:[0x72513b,0x384b5a,0x6b4938,0x4e5945][i%4],roughness:.8});
+                        const door=new THREE.Mesh(new THREE.BoxGeometry(2.1,4.2,.18),doorMat);door.position.set(x,2.2,z+8.16);door.castShadow=true;scene3D.add(door);
+                        const trimMat=new THREE.MeshStandardMaterial({color:0xf0e9dc,roughness:.8});
+                        for(let wx of [-4.3,4.3]){const trim=new THREE.Mesh(new THREE.BoxGeometry(2.8,2.9,.18),trimMat);trim.position.set(x+wx,4.5,z+8.18);scene3D.add(trim);const pane=new THREE.Mesh(new THREE.BoxGeometry(2.25,2.35,.2),windowMat);pane.position.set(x+wx,4.5,z+8.28);scene3D.add(pane);}
+                        const porch=new THREE.Mesh(new THREE.BoxGeometry(6, .35,3),curbMat);porch.position.set(x, .25,z+9.3);porch.receiveShadow=true;scene3D.add(porch);
+                        const path=new THREE.Mesh(new THREE.BoxGeometry(2.6,.12,8),sidewalk2Mat);path.position.set(x,.08,z+14);path.receiveShadow=true;scene3D.add(path);
+                    }
+                    // Small street lamps with warm light pools
+                    const lampPoleMat=new THREE.MeshStandardMaterial({color:0x3e454b,metalness:.35,roughness:.65});
+                    for(let z=-88;z<=88;z+=32){for(const side of [-1,1]){const x=side*11.8;const pole=new THREE.Mesh(new THREE.CylinderGeometry(.12,.18,7,8),lampPoleMat);pole.position.set(x,3.5,z);pole.castShadow=true;scene3D.add(pole);const arm=new THREE.Mesh(new THREE.BoxGeometry(1.4,.14,.14),lampPoleMat);arm.position.set(x-side*.55,6.65,z);scene3D.add(arm);const bulb=new THREE.Mesh(new THREE.SphereGeometry(.25,8,8),new THREE.MeshStandardMaterial({color:0xffe6a8,emissive:0xffc76b,emissiveIntensity:.5}));bulb.position.set(x-side*1.1,6.5,z);scene3D.add(bulb);}}
+                    // Short wooden fences and garden beds around the homes
+                    const fenceMat=new THREE.MeshStandardMaterial({color:0xb9a184,roughness:1});
+                    for(let i=0;i<8;i++){const side=i%2?1:-1,z=-75+Math.floor(i/2)*38,x=side*24;for(let j=0;j<7;j++){const post=new THREE.Mesh(new THREE.BoxGeometry(.22,1.2,.22),fenceMat);post.position.set(x+side*(10+j*1.4),.65,z+3);post.castShadow=true;scene3D.add(post);}const rail=new THREE.Mesh(new THREE.BoxGeometry(9.2,.18,.2),fenceMat);rail.position.set(x+side*14,.85,z+3);scene3D.add(rail);}
+                    // Grounded realism pass: segmented driveways, roadside verges, roof ridges and foliage layers
+                    const drivewayMat=new THREE.MeshStandardMaterial({color:0x898783,roughness:.98});
+                    const vergeMat=new THREE.MeshStandardMaterial({color:0x658454,roughness:1});
+                    const roofDetailMat=new THREE.MeshStandardMaterial({color:0x393c40,roughness:.92});
+                    const stoneMat=new THREE.MeshStandardMaterial({color:0xb0aaa0,roughness:1});
+                    for(let i=0;i<8;i++){const side=i%2?1:-1,z=-75+Math.floor(i/2)*38,x=side*24;
+                        // driveway slab and stepping-stone approach
+                        const drive=new THREE.Mesh(new THREE.BoxGeometry(5,.12,10),drivewayMat);drive.position.set(x+side*8,.07,z+17);drive.receiveShadow=true;scene3D.add(drive);
+                        for(let k=0;k<4;k++){const step=new THREE.Mesh(new THREE.BoxGeometry(1.25,.08,1.1),stoneMat);step.position.set(x+side*(4.5+k*.9),.12,z+12+k*1.7);step.receiveShadow=true;scene3D.add(step);}
+                        // roof ridge and fascia visually break up the primitive roof silhouette
+                        const ridge=new THREE.Mesh(new THREE.BoxGeometry(14,.24,.3),roofDetailMat);ridge.position.set(x,11.15,z);scene3D.add(ridge);
+                        for(const zz of [-8.15,8.15]){const fascia=new THREE.Mesh(new THREE.BoxGeometry(14,.25,.28),roofDetailMat);fascia.position.set(x,7.4,z+zz);scene3D.add(fascia);}
+                    }
+                    // Soft roadside verge bands and shrub clusters of varying sizes
+                    for(const side of [-1,1]){const verge=new THREE.Mesh(new THREE.BoxGeometry(2.3,.08,210),vergeMat);verge.position.set(side*12.2,.04,0);verge.receiveShadow=true;scene3D.add(verge);}
+                    const layeredLeafMats=[0x3f7044,0x527f49,0x638c52,0x47734a].map(c=>new THREE.MeshStandardMaterial({color:c,roughness:.97}));
+                    for(let i=0;i<54;i++){const x=(Math.random()<.5?-1:1)*(14+Math.random()*27),z=-100+Math.random()*200;
+                        if(Math.abs(x)<17 && Math.abs(z)<16)continue;
+                        const mat=layeredLeafMats[i%layeredLeafMats.length];const shrub=new THREE.Mesh(new THREE.SphereGeometry(.65+Math.random()*.5,9,7),mat);shrub.position.set(x,.45+Math.random()*.25,z);shrub.scale.set(1.2,.75,.9);shrub.castShadow=true;shrub.receiveShadow=true;scene3D.add(shrub);
+                        if(i%5===0){const rock=new THREE.Mesh(new THREE.DodecahedronGeometry(.45+Math.random()*.3,0),stoneMat);rock.position.set(x+1.2,.3,z+.8);rock.rotation.set(Math.random(),Math.random(),Math.random());rock.castShadow=true;scene3D.add(rock);}
+                    }
+                    // Subtle sidewalk joints for scale and material detail
+                    for(const side of [-1,1])for(let z=-100;z<=100;z+=5){const joint=new THREE.Mesh(new THREE.BoxGeometry(3,.025,.045),new THREE.MeshStandardMaterial({color:0xaaa9a3,roughness:1}));joint.position.set(side*9.2,.24,z);scene3D.add(joint);}
+                    // Garden clusters, planter boxes and visual variation
+                    const gardenMat=new THREE.MeshStandardMaterial({color:0x466f3c,roughness:1});const soilMat=new THREE.MeshStandardMaterial({color:0x584331,roughness:1});
+                    for(let i=0;i<20;i++){const x=(i%2?1:-1)*(20+Math.random()*18),z=-95+Math.random()*190;const bed=new THREE.Mesh(new THREE.BoxGeometry(3,.18,2.3),soilMat);bed.position.set(x,.12,z);scene3D.add(bed);for(let j=0;j<3;j++){const bush=new THREE.Mesh(new THREE.SphereGeometry(.7,8,7),gardenMat);bush.position.set(x-1+j*.9,.65,z+(Math.random()-.5)*.5);bush.scale.y=.8;bush.castShadow=true;scene3D.add(bush);}}
+                }
 
                 // Landmarks
                 landmarks.forEach((lm) => {
@@ -2570,6 +2645,7 @@
         // =====================================================================
         // 10. ONE-CLICK SERVER CREATION, INVITE SHARING & JOIN FLOW
         // =====================================================================
+        let selectedExperience = "baseplate";
         const playBtn = document.getElementById("play-btn");
         const friendCodeInput = document.getElementById("friend-code-input");
         const lobbyFeedback = document.getElementById("lobby-feedback");
@@ -2638,6 +2714,50 @@
             return copyTextFallback(text);
         }
 
+        function buildGreenfieldRuntime() {
+            if (!scene3D || scene3D.userData.greenfieldBuilt) return;
+            scene3D.userData.greenfieldBuilt = true;
+            scene3D.background = new THREE.Color(0xb7d0df);
+            scene3D.fog = new THREE.Fog(0xb7d0df, 160, 520);
+            // Large asphalt boulevard with shoulder, curb and broken center markings.
+            const asphalt = new THREE.MeshStandardMaterial({color:0x34383c, roughness:0.98});
+            const concrete = new THREE.MeshStandardMaterial({color:0xb7b7b1, roughness:0.95});
+            const white = new THREE.MeshStandardMaterial({color:0xe8e5d9, roughness:0.9});
+            const road = new THREE.Mesh(new THREE.BoxGeometry(22,.12,220),asphalt); road.position.set(0,.05,0); road.receiveShadow=true; scene3D.add(road);
+            for(const side of [-1,1]) {const curb=new THREE.Mesh(new THREE.BoxGeometry(1,.3,220),concrete);curb.position.set(side*11.5,.15,0);curb.receiveShadow=true;scene3D.add(curb);const sidewalk=new THREE.Mesh(new THREE.BoxGeometry(5,.18,220),concrete);sidewalk.position.set(side*14,.09,0);sidewalk.receiveShadow=true;scene3D.add(sidewalk);}
+            for(let z=-100;z<110;z+=16){const dash=new THREE.Mesh(new THREE.BoxGeometry(.24,.035,5),white);dash.position.set(0,.13,z);scene3D.add(dash);}
+            // Distinct, more detailed neighborhood homes, lawns and driveways.
+            const walls=[0xd5c7ad,0xb9c8c4,0xc9b4a1,0xd6d2c6].map(c=>new THREE.MeshStandardMaterial({color:c,roughness:.85}));
+            const roofs=[0x4a4643,0x5b5149,0x39434a,0x655247].map(c=>new THREE.MeshStandardMaterial({color:c,roughness:.92}));
+            const glass=new THREE.MeshStandardMaterial({color:0x83b9ce,metalness:.12,roughness:.22});
+            const wood=new THREE.MeshStandardMaterial({color:0x72523a,roughness:.9});
+            const grass=new THREE.MeshStandardMaterial({color:0x648a52,roughness:1});
+            for(let n=0;n<6;n++){const side=n%2?1:-1, z=-78+Math.floor(n/2)*48, x=side*34, wall=walls[n%walls.length], roofMat=roofs[n%roofs.length];
+                const lawn=new THREE.Mesh(new THREE.BoxGeometry(27,.1,30),grass);lawn.position.set(x,.04,z);lawn.receiveShadow=true;scene3D.add(lawn);
+                const house=new THREE.Mesh(new THREE.BoxGeometry(18,9,17),wall);house.position.set(x,4.6,z);house.castShadow=true;house.receiveShadow=true;scene3D.add(house);
+                const roof=new THREE.Mesh(new THREE.ConeGeometry(13,6,4),roofMat);roof.rotation.y=Math.PI/4;roof.position.set(x,11,z);roof.castShadow=true;scene3D.add(roof);
+                const door=new THREE.Mesh(new THREE.BoxGeometry(2.5,4.5,.25),wood);door.position.set(x,2.35,z+8.62);scene3D.add(door);
+                for(const wx of [-5,5]){const frame=new THREE.Mesh(new THREE.BoxGeometry(3.2,3.4,.3),concrete);frame.position.set(x+wx,5,z+8.65);scene3D.add(frame);const pane=new THREE.Mesh(new THREE.BoxGeometry(2.65,2.8,.12),glass);pane.position.set(x+wx,5,z+8.82);scene3D.add(pane);}
+                const porch=new THREE.Mesh(new THREE.BoxGeometry(7,.4,4),concrete);porch.position.set(x,.25,z+11);scene3D.add(porch);
+                const drive=new THREE.Mesh(new THREE.BoxGeometry(7,.12,16),asphalt);drive.position.set(x+side*12,.08,z+10);scene3D.add(drive);
+                // shrubs and a fence boundary
+                for(let j=0;j<7;j++){const bush=new THREE.Mesh(new THREE.SphereGeometry(.9,9,7),grass);bush.position.set(x-side*12+j*3,.8,z-10);bush.scale.y=.75;bush.castShadow=true;scene3D.add(bush);}
+            }
+            // Layered tree silhouettes and lamp posts in the expanded streetscape.
+            const bark=new THREE.MeshStandardMaterial({color:0x66503d,roughness:1}); const foliage=[0x426f45,0x55804b,0x658b55].map(c=>new THREE.MeshStandardMaterial({color:c,roughness:1}));
+            for(let i=0;i<32;i++){const side=i%2?1:-1,x=side*(19+Math.random()*8),z=-100+Math.random()*200;const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.35,.5,5,8),bark);trunk.position.set(x,2.5,z);trunk.castShadow=true;scene3D.add(trunk);for(let k=0;k<3;k++){const crown=new THREE.Mesh(new THREE.SphereGeometry(2.6,10,8),foliage[(i+k)%3]);crown.position.set(x+(k-1)*1.3,5.3+k*.6,z+(k%2)*1.1);crown.scale.set(1.15,1.25,1);crown.castShadow=true;scene3D.add(crown);}}
+            const lampMat=new THREE.MeshStandardMaterial({color:0x323b42,metalness:.25,roughness:.7});
+            for(let z=-90;z<=90;z+=30){for(const side of [-1,1]){const x=side*17.5;const pole=new THREE.Mesh(new THREE.CylinderGeometry(.12,.18,8,8),lampMat);pole.position.set(x,4,z);pole.castShadow=true;scene3D.add(pole);const arm=new THREE.Mesh(new THREE.BoxGeometry(1.5,.16,.16),lampMat);arm.position.set(x-side*.6,7.5,z);scene3D.add(arm);const bulb=new THREE.Mesh(new THREE.SphereGeometry(.3,8,8),new THREE.MeshStandardMaterial({color:0xffedb5,emissive:0xffd27a,emissiveIntensity:.35}));bulb.position.set(x-side*1.15,7.35,z);scene3D.add(bulb);}}
+            // Rough, mottled grass surface overlay and individually animated blades.
+            const gfGrassTexCanvas=document.createElement('canvas');gfGrassTexCanvas.width=512;gfGrassTexCanvas.height=512;const gctx=gfGrassTexCanvas.getContext('2d');
+            gctx.fillStyle='#587c47';gctx.fillRect(0,0,512,512);for(let q=0;q<5200;q++){gctx.fillStyle=['rgba(35,60,28,.10)','rgba(190,180,110,.09)','rgba(120,145,88,.12)'][q%3];gctx.fillRect(Math.random()*512,Math.random()*512,1+Math.random()*4,1+Math.random()*3);}const gfGrassTex=new THREE.CanvasTexture(gfGrassTexCanvas);gfGrassTex.wrapS=gfGrassTex.wrapT=THREE.RepeatWrapping;gfGrassTex.repeat.set(12,12);
+            const gfGround=new THREE.Mesh(new THREE.PlaneGeometry(220,220),new THREE.MeshStandardMaterial({map:gfGrassTex,color:0xffffff,roughness:1,metalness:0}));gfGround.rotation.x=-Math.PI/2;gfGround.position.y=.012;gfGround.receiveShadow=true;scene3D.add(gfGround);
+            const bladeMats=[0x466b38,0x638d48,0x789e55,0x4d7840].map(c=>new THREE.MeshStandardMaterial({color:c,roughness:1,side:THREE.DoubleSide}));
+            const bladeGeo=new THREE.PlaneGeometry(.12, .85); bladeGeo.translate(0,.42,0);
+            for(let n=0;n<900;n++){let x=(Math.random()*180)-90,z=(Math.random()*190)-95;if(Math.abs(x)<13||Math.abs(x)>75)continue;const blade=new THREE.Mesh(bladeGeo,bladeMats[n%bladeMats.length]);blade.position.set(x,.08,z);blade.rotation.y=Math.random()*Math.PI;blade.castShadow=n%5===0;blade.userData.swaySeed=Math.random()*6.28;greenfieldSwayMeshes.push(blade);scene3D.add(blade);}
+            // Greenfield-specific avatar motion is smoother with damped limb motion and subtle body lean.
+        }
+
         function launchIntoBaseplateServer(targetRoomCode = "") {
             SoundFX.unlock();
             SoundFX.playClick();
@@ -2657,6 +2777,11 @@
                 inviteCardTitle.textContent = "Server Created • Invite Friends";
             }
 
+
+            // Apply selected experience before entering the world
+            state.experience = selectedExperience;
+            if (selectedExperience === "greenfield") buildGreenfieldRuntime();
+            if (selectedExperience === "greenfield") inviteCardTitle.textContent = (state.isHostCreator ? "Greenfield Server Created" : "Joined Greenfield Server") + " • Invite Friends";
 
             // Switch immediately to gameplay with zero waiting
             document.getElementById("lobby-screen").classList.add("hidden");
@@ -2678,6 +2803,17 @@
                 true
             );
         }
+
+        document.getElementById("select-realistic-btn").addEventListener("click", () => {
+            selectedExperience = selectedExperience === "greenfield" ? "baseplate" : "greenfield";
+            const btn = document.getElementById("select-realistic-btn");
+            const green = selectedExperience === "greenfield";
+            btn.textContent = green ? "✓ Greenfield Selected — click to switch back" : "Select Greenfield";
+            btn.style.background = green ? "#bbf7d0" : "#e2e8f0";
+            btn.setAttribute("aria-pressed", green ? "true" : "false");
+            playBtn.textContent = green ? "Play Greenfield" : "Play Baseplate";
+            lobbyFeedback.textContent = green ? "Greenfield selected! Start it using the Play button." : "Greenfield deselected. Baseplate selected.";
+        });
 
         playBtn.addEventListener("click", () => {
             const code = friendCodeInput.value.trim() || state.invitedRoomCode;
@@ -3720,6 +3856,7 @@
             const dt = Math.min(0.05, Math.max(0.001, (now - lastFrameTime) / 1000));
             lastFrameTime = now;
 
+            for (const blade of greenfieldSwayMeshes) { blade.rotation.z = Math.sin(now*0.0017 + blade.userData.swaySeed) * 0.16; blade.rotation.x = Math.cos(now*0.0013 + blade.userData.swaySeed) * 0.06; }
             if (state.renderMode === "3d" && cloudGroup3D) {
                 cloudGroup3D.children.forEach((c) => {
                     c.position.x += 0.8 * dt;
