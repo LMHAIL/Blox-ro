@@ -1455,6 +1455,32 @@
         // Start in 2D Isometric immediately so the background is alive at t = 0ms
         activate2DFallbackRenderer();
 
+        // Procedural surface textures: subtle material variation rather than flat plastic blocks.
+        function createSurfaceTexture(baseColorHex, kind = "fabric") {
+            const c = document.createElement("canvas"); c.width = 256; c.height = 256;
+            const ctx = c.getContext("2d"); ctx.fillStyle = baseColorHex; ctx.fillRect(0,0,256,256);
+            const rgb = (() => { const n=parseInt(baseColorHex.replace("#", ""),16); return [(n>>16)&255,(n>>8)&255,n&255]; })();
+            if (kind === "fabric") {
+                ctx.strokeStyle = "rgba(255,255,255,.045)"; ctx.lineWidth=1;
+                for(let i=0;i<256;i+=4){ctx.beginPath();ctx.moveTo(i,0);ctx.lineTo(i,256);ctx.stroke();ctx.beginPath();ctx.moveTo(0,i);ctx.lineTo(256,i);ctx.stroke();}
+            } else if (kind === "skin") {
+                ctx.strokeStyle="rgba(255,255,255,.035)";ctx.lineWidth=2;
+                for(let i=0;i<35;i++){let x=Math.random()*256,y=Math.random()*256;ctx.beginPath();ctx.arc(x,y,2+Math.random()*5,0,Math.PI*2);ctx.stroke();}
+            }
+            // Fine, low-contrast speckling to break up the perfectly flat surface.
+            for(let i=0;i<1800;i++){const v=Math.random()>.5?1:-1;ctx.fillStyle=`rgba(${v>0?255:0},${v>0?255:0},${v>0?255:0},${Math.random()*.035})`;ctx.fillRect(Math.random()*256,Math.random()*256,1+Math.random()*2,1+Math.random()*2);}
+            const tex=new THREE.CanvasTexture(c); tex.colorSpace=THREE.SRGBColorSpace || tex.colorSpace; return tex;
+        }
+        function createGrassTexture() {
+            const c=document.createElement("canvas");c.width=512;c.height=512;const ctx=c.getContext("2d");
+            ctx.fillStyle="#629d57";ctx.fillRect(0,0,512,512);
+            // soft mottled turf patches create a more natural, painterly grass surface
+            for(let i=0;i<180;i++){ctx.fillStyle=`rgba(${Math.random()>.5?35:190},${Math.random()>.5?85:150},${Math.random()>.5?38:90},${.025+Math.random()*.06})`;ctx.beginPath();ctx.ellipse(Math.random()*512,Math.random()*512,8+Math.random()*35,6+Math.random()*25,Math.random()*Math.PI,0,Math.PI*2);ctx.fill();}
+            for(let i=0;i<11000;i++){const shade=Math.random();ctx.fillStyle=shade>.55?`rgba(157,190,103,${Math.random()*.22})`:`rgba(24,75,37,${Math.random()*.16})`;ctx.fillRect(Math.random()*512,Math.random()*512,1+Math.random()*3,1+Math.random()*2);}
+            for(let i=0;i<220;i++){ctx.strokeStyle=`rgba(28,89,40,${.08+Math.random()*.12})`;ctx.beginPath();let x=Math.random()*512,y=Math.random()*512;ctx.moveTo(x,y);ctx.lineTo(x+Math.random()*4-2,y-2-Math.random()*5);ctx.stroke();}
+            const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(30,30);return t;
+        }
+
         function createStudTexture(baseColorHex, repeatX, repeatY) {
             const c = document.createElement("canvas");
             c.width = 128;
@@ -1575,9 +1601,9 @@
             if (state.renderMode !== "3d" || !scene3D) return null;
             const root = new THREE.Group();
 
-            const skinMat = new THREE.MeshStandardMaterial({ color: colors.skin, roughness: 0.5 });
-            const shirtMat = new THREE.MeshStandardMaterial({ color: colors.shirt, roughness: 0.65 });
-            const pantsMat = new THREE.MeshStandardMaterial({ color: colors.pants, roughness: 0.7 });
+            const skinMat = new THREE.MeshStandardMaterial({ color: colors.skin, map: createSurfaceTexture(colors.skin, "skin"), roughness: 0.72 });
+            const shirtMat = new THREE.MeshStandardMaterial({ color: colors.shirt, map: createSurfaceTexture(colors.shirt, "fabric"), roughness: 0.88 });
+            const pantsMat = new THREE.MeshStandardMaterial({ color: colors.pants, map: createSurfaceTexture(colors.pants, "fabric"), roughness: 0.92 });
 
             const torso = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 1), shirtMat);
             torso.position.set(0, 3.0, 0);
@@ -1726,23 +1752,26 @@
                 renderer3D.shadowMap.type = THREE.PCFSoftShadowMap;
                 renderer3D.outputEncoding = THREE.sRGBEncoding;
                 renderer3D.toneMapping = THREE.ACESFilmicToneMapping;
-                renderer3D.toneMappingExposure = 1.08;
+                renderer3D.toneMappingExposure = 1.12;
+                renderer3D.shadowMap.autoUpdate = true;
 
                 scene3D = new THREE.Scene();
                 scene3D.background = new THREE.Color("#7dd3fc");
-                scene3D.fog = new THREE.FogExp2("#bae6fd", 0.0026);
+                scene3D.fog = new THREE.FogExp2("#c8e2f3", 0.00165);
 
                 camera3D = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 1000);
 
-                const hemiLight = new THREE.HemisphereLight(0xffffff, 0x64748b, 0.72);
+                const hemiLight = new THREE.HemisphereLight(0xdceeff, 0x566b48, 0.92);
                 hemiLight.position.set(0, 100, 0);
                 scene3D.add(hemiLight);
 
-                const dirLight = new THREE.DirectionalLight(0xfffbeb, 0.95);
+                const dirLight = new THREE.DirectionalLight(0xfff1d5, 1.25);
                 dirLight.position.set(65, 110, 55);
                 dirLight.castShadow = true;
-                dirLight.shadow.mapSize.width = 1024;
-                dirLight.shadow.mapSize.height = 1024;
+                dirLight.shadow.mapSize.width = 2048;
+                dirLight.shadow.mapSize.height = 2048;
+                dirLight.shadow.bias = -0.00015;
+                dirLight.shadow.normalBias = 0.025;
                 const d = 135;
                 dirLight.shadow.camera.left = -d;
                 dirLight.shadow.camera.right = d;
@@ -1759,9 +1788,9 @@
                 const plateMesh = new THREE.Mesh(
                     new THREE.BoxGeometry(240, 2, 240),
                     new THREE.MeshStandardMaterial({
-                        map: createStudTexture("#9ca3af", 120, 120),
-                        roughness: 0.75,
-                        metalness: 0.05
+                        map: createGrassTexture(),
+                        roughness: 0.96,
+                        metalness: 0
                     })
                 );
                 plateMesh.position.set(0, -1, 0);
@@ -1801,6 +1830,39 @@
                     cloudGroup3D.add(cloud);
                 }
                 scene3D.add(cloudGroup3D);
+
+                // Natural landscaping: road, sidewalks, trees, shrubs and a sun glow
+                const roadMat = new THREE.MeshStandardMaterial({ color: 0x343a40, roughness: 0.92 });
+                const road = new THREE.Mesh(new THREE.PlaneGeometry(18, 220), roadMat);
+                road.rotation.x = -Math.PI / 2; road.position.set(-62, 0.035, 0); road.receiveShadow = true; scene3D.add(road);
+                const sidewalkMat = new THREE.MeshStandardMaterial({ color: 0xb8b7ad, roughness: 0.9 });
+                for (const sx of [-73,-51]) { const sw = new THREE.Mesh(new THREE.PlaneGeometry(4,220), sidewalkMat); sw.rotation.x=-Math.PI/2; sw.position.set(sx,0.06,0); sw.receiveShadow=true; scene3D.add(sw); }
+                const lineMat = new THREE.MeshStandardMaterial({color:0xf4d35e,roughness:.8});
+                for(let z=-108;z<108;z+=14){const dash=new THREE.Mesh(new THREE.PlaneGeometry(.35,7),lineMat);dash.rotation.x=-Math.PI/2;dash.position.set(-62,.07,z,);scene3D.add(dash);}
+                // A collection of low-poly but organic-looking trees using layered spheres
+                const treePositions=[[-95,-90],[-92,-55],[-95,-15],[-94,30],[-95,85],[-30,-92],[-15,-96],[20,-95],[60,-95],[95,-85],[95,-45],[95,5],[95,45],[90,90],[45,100],[0,100],[-40,95],[-75,95],[-78,45],[-80,0],[-80,-45],[45,75],[70,65],[65,15],[55,-55],[25,70],[-35,65],[-45,25],[75,-15]];
+                for(const [tx,tz] of treePositions){
+                    const tree=new THREE.Group();
+                    const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.65,.9,7,7),new THREE.MeshStandardMaterial({color:0x755035,roughness:1}));trunk.position.y=3.5;trunk.castShadow=true;tree.add(trunk);
+                    const leafMat=new THREE.MeshStandardMaterial({color:[0x397a43,0x43894a,0x568f50,0x2e6940][Math.floor(Math.random()*4)],roughness:1});
+                    for(let i=0;i<4;i++){const crown=new THREE.Mesh(new THREE.SphereGeometry(3.5+i*.65,9,7),leafMat);crown.position.set((Math.random()-.5)*1.7,6.5+i*2.1,(Math.random()-.5)*1.5);crown.scale.set(1,.82,1);crown.castShadow=true;tree.add(crown);}
+                    tree.position.set(tx,0,tz);scene3D.add(tree);
+                }
+                // Ground-level detailing: soft shrubs, ornamental grasses and small flowers
+                const shrubMat = new THREE.MeshStandardMaterial({color:0x477d43,roughness:1});
+                const grassTuftMat = new THREE.MeshStandardMaterial({color:0x83a95b,roughness:1});
+                for(let i=0;i<95;i++){
+                    const x=(Math.random()-.5)*220,z=(Math.random()-.5)*220;
+                    if(Math.abs(x+62)<15 || Math.abs(x)<7) continue;
+                    const g=new THREE.Group();
+                    for(let j=0;j<3;j++){const b=new THREE.Mesh(new THREE.SphereGeometry(.55+Math.random()*.45,7,6),shrubMat);b.position.set((Math.random()-.5)*1.2,.45+Math.random()*.3,(Math.random()-.5)*1.2);b.scale.y=.65;b.castShadow=true;g.add(b);}
+                    if(i%5===0){const flower=new THREE.Mesh(new THREE.SphereGeometry(.16,7,6),new THREE.MeshStandardMaterial({color:[0xffd166,0xf5f0e6,0xf08cae][i%3]}));flower.position.set(0,1.1,0);g.add(flower);}
+                    g.position.set(x,0,z);scene3D.add(g);
+                }
+                //
+                // Sun disc and warm ambience
+                const sun=new THREE.Mesh(new THREE.SphereGeometry(10,24,16),new THREE.MeshBasicMaterial({color:0xfff4c2}));sun.position.set(95,95,-150);scene3D.add(sun);
+                const sunLight=new THREE.PointLight(0xffe6b0,.5,300);sunLight.position.copy(sun.position);scene3D.add(sunLight);
 
                 // Local R6 Player
                 localPlayerMesh3D = createR6Character3D(state.avatar);
