@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>Blox-ro - Baseplate Multiplayer Sandbox</title>
+    <title>Blox-ro — Baseplate Sandbox</title>
     <style>
         /* =====================================================================
            1. DESIGN TOKENS & RESET (IMMEDIATE FIRST-PAINT STYLES)
@@ -723,14 +723,50 @@
             width: 64px;
             height: 64px;
             border-radius: 50%;
-            background: rgba(15, 23, 42, 0.72);
-            border: 2px solid rgba(255, 255, 255, 0.38);
+            background: rgba(15, 23, 42, 0.78);
+            border: 2px solid rgba(255, 255, 255, 0.42);
             color: #ffffff;
             font-size: 12px;
-            font-weight: 800;
+            font-weight: 900;
             cursor: pointer;
             touch-action: none;
+            box-shadow: 0 5px 16px rgba(0,0,0,.35);
         }
+        #mobile-sprint-btn {
+            position: fixed;
+            bottom: 178px;
+            right: 28px;
+            min-width: 52px;
+            height: 42px;
+            padding: 0 10px;
+            border-radius: 999px;
+            background: rgba(30, 64, 175, .82);
+            border: 2px solid rgba(191, 219, 254, .55);
+            color: #fff;
+            font-size: 10px;
+            font-weight: 900;
+            letter-spacing: .05em;
+            touch-action: none;
+            box-shadow: 0 5px 16px rgba(0,0,0,.35);
+        }
+        #mobile-sprint-btn.active { background: rgba(5, 150, 105, .94); border-color: #86efac; }
+        .btn:focus-visible, .icon-square-btn:focus-visible, .pill-btn:focus-visible, .hotbar-slot:focus-visible, .swatch-btn:focus-visible {
+            outline: 2px solid #fde68a;
+            outline-offset: 3px;
+        }
+
+
+        #mobile-action-buttons { position:fixed; right:12px; bottom:250px; display:flex; flex-direction:column; gap:5px; max-height:36vh; overflow:auto; }
+        #mobile-action-buttons button, #leave-game-btn { background:rgba(15,23,42,.86); color:#fff; border:1px solid rgba(255,255,255,.32); border-radius:10px; padding:8px 10px; font-size:11px; font-weight:800; touch-action:manipulation; box-shadow:var(--shadow-btn); }
+        #leave-game-btn { color:#fecaca; }
+        @media (max-width:820px) {
+            .hotbar { bottom:10px; left:50%; transform:translateX(-50%); gap:4px; }
+            #mobile-action-buttons { right:10px; bottom:258px; max-height:34vh; }
+            #build-color-bar { bottom:82px; left:50%; transform:translateX(-50%); max-width:95vw; }
+            .hotbar-num { display:none; }
+            #mobile-sprint-btn { right:100px; bottom:178px; }
+        }
+        @media (min-width:821px) { #mobile-action-buttons { display:none; } }
 
         /* =====================================================================
            5. MODALS (SELF-HOST SERVER / JOIN ROOM)
@@ -870,7 +906,7 @@
                 <div>
                     <h1 class="font-blox" style="margin: 0 0 4px; font-size: 24px;">Baseplate</h1>
                     <p style="margin: 0; font-size: 12.5px; line-height: 1.48; color: var(--text-secondary);">
-                        Click <strong>Play Baseplate</strong> to instantly spin up your own multiplayer server with a shareable room code, or enter a friend's code below to join theirs!
+                        Create a room with a shareable code, explore the obby, build with bricks, and hang out with AI bots. Same-browser tabs connect locally; cross-device play needs a reachable relay or your own WebSocket server.
                     </p>
                 </div>
 
@@ -940,11 +976,13 @@
                     </div>
                     <div class="controls-summary">
                         <div><span class="kbd-chip">WASD / Arrows</span>Move</div>
+                        <div><span class="kbd-chip">Shift</span>Sprint</div>
                         <div><span class="kbd-chip">Space</span>Jump</div>
                         <div><span class="kbd-chip">Drag / Right-Drag</span>Orbit Camera</div>
                         <div><span class="kbd-chip">Scroll</span>Zoom</div>
                         <div><span class="kbd-chip">1 / 2 / 3</span>Move / Build / Delete</div>
-                        <div><span class="kbd-chip">/e dance</span>Wave, Cheer, Respawn (R)</div>
+                        <div><span class="kbd-chip">4 / 5 / 6</span>Dance / Wave / Cheer</div>
+                        <div><span class="kbd-chip">R</span>Respawn</div>
                     </div>
                 </div>
             </div>
@@ -960,6 +998,7 @@
             <button type="button" id="menu-btn" class="hud-panel icon-square-btn" title="Lobby &amp; Avatar">☰</button>
             <button type="button" id="respawn-btn" class="hud-panel icon-square-btn" title="Respawn (Key R)">↻</button>
             <button type="button" id="chat-toggle-btn" class="hud-panel icon-square-btn" title="Toggle Chat">💬</button>
+            <button type="button" id="leave-game-btn" class="hud-panel pill-btn" title="Leave game">🚪 Leave</button>
 
             <button type="button" id="hud-server-pill" class="hud-panel pill-btn" title="Toggle Server Invite Card">
                 <span id="hud-status-dot" class="status-dot" style="background: #4ade80;"></span>
@@ -1011,6 +1050,7 @@
             <div id="leaderboard-list" class="leaderboard-list"></div>
         </div>
 
+
         <!-- Build Color Picker (Slot 2 Build) -->
         <div id="build-color-bar" class="build-color-bar hud-panel hud-interactive hidden">
             <span style="font-size: 11px; font-weight: 700; color: var(--text-secondary);">Brick:</span>
@@ -1025,45 +1065,38 @@
         <!-- Tool Hint Pill -->
         <div id="tool-hint" class="tool-hint hud-panel hidden"></div>
 
-        <!-- Bottom Hotbar -->
-        <div class="hotbar hud-interactive">
-            <button type="button" class="hotbar-slot active" data-slot="1" title="Move / Inspect (Key 1)">
-                <span class="hotbar-num">1</span>
-                <span class="hotbar-icon">🖐️</span>
-                <span class="hotbar-label">Move</span>
+        <!-- Tool bar: no number-key commands -->
+        <div class="hotbar hud-interactive" id="tool-bar">
+            <button type="button" class="hotbar-slot active" data-slot="1" title="Move">
+                <span class="hotbar-icon">🖐️</span><span class="hotbar-label">Move</span>
             </button>
-            <button type="button" class="hotbar-slot" data-slot="2" title="Place Brick (Key 2)">
-                <span class="hotbar-num">2</span>
-                <span class="hotbar-icon">🧱</span>
-                <span class="hotbar-label">Build</span>
+            <button type="button" class="hotbar-slot" data-slot="2" title="Build">
+                <span class="hotbar-icon">🧱</span><span class="hotbar-label">Build</span>
             </button>
-            <button type="button" class="hotbar-slot" data-slot="3" title="Delete Brick (Key 3)">
-                <span class="hotbar-num">3</span>
-                <span class="hotbar-icon">🔨</span>
-                <span class="hotbar-label">Delete</span>
+            <button type="button" class="hotbar-slot" data-slot="3" title="Delete">
+                <span class="hotbar-icon">🔨</span><span class="hotbar-label">Delete</span>
             </button>
-            <button type="button" class="hotbar-slot" data-slot="4" title="Emote: Dance">
-                <span class="hotbar-num">4</span>
-                <span class="hotbar-icon">🕺</span>
-                <span class="hotbar-label">Dance</span>
-            </button>
-            <button type="button" class="hotbar-slot" data-slot="5" title="Emote: Wave">
-                <span class="hotbar-num">5</span>
-                <span class="hotbar-icon">👋</span>
-                <span class="hotbar-label">Wave</span>
-            </button>
-            <button type="button" class="hotbar-slot" data-slot="6" title="Emote: Cheer">
-                <span class="hotbar-num">6</span>
-                <span class="hotbar-icon">🙌</span>
-                <span class="hotbar-label">Cheer</span>
+            <button type="button" class="hotbar-slot" id="emote-switcher" title="Cycle emotes (.)">
+                <span class="hotbar-icon">😊</span><span class="hotbar-label">Emote</span>
             </button>
         </div>
 
         <!-- Touch Joystick & Jump Button -->
         <div id="mobile-controls" class="hud-interactive">
+            <div id="mobile-action-buttons">
+                <button type="button" id="mobile-build-btn">🧱 BUILD</button>
+                <button type="button" id="mobile-delete-btn">🔨 DELETE</button>
+                <button type="button" id="mobile-emote-btn">😊 EMOTE</button>
+                <button type="button" id="mobile-chat-btn">💬 CHAT</button>
+                <button type="button" id="mobile-menu-btn">☰ MENU</button>
+                <button type="button" id="mobile-color-btn">🎨 COLORS</button>
+                <button type="button" id="mobile-respawn-btn">↻ RESPAWN</button>
+                <button type="button" id="mobile-leave-btn">🚪 LEAVE</button>
+            </div>
             <div id="joystick-zone">
                 <div id="joystick-knob"></div>
             </div>
+            <button type="button" id="mobile-sprint-btn" aria-pressed="false">SPRINT</button>
             <button type="button" id="mobile-jump-btn">JUMP</button>
         </div>
     </div>
@@ -1078,7 +1111,7 @@
                 <button type="button" id="close-host-modal-btn" class="btn btn-sm btn-slate">Close</button>
             </div>
             <p style="margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--text-secondary);">
-                By default, Blox-ro connects via BroadcastChannel + public WSS relays with zero setup. If you want to connect to your own Node.js WebSocket server, enter its URL below or download <code style="color: #7dd3fc;">server.js</code>.
+                Blox-ro tries a public WSS relay and also supports same-browser tabs through BroadcastChannel. Public relays are best-effort; for dependable cross-device rooms, connect your own Node.js WebSocket server or download <code style="color: #7dd3fc;">server.js</code>.
             </p>
             <div style="display: flex; gap: 6px; flex-wrap: wrap;">
                 <input id="custom-ws-input" type="text" class="input-field" style="flex: 1; min-width: 210px;" placeholder="ws://localhost:8080 or wss://your-server.com" />
@@ -1302,6 +1335,7 @@
             buildColor: "#ef4444",
             currentEmote: null,
             emoteTimer: 0,
+            mobileSprinting: false,
             lastChatBubble: "",
             lastChatTime: 0,
             players: new Map(),
@@ -1328,8 +1362,8 @@
             worldColliders.length = 0;
             landmarks.length = 0;
 
-            // Main Baseplate (160 x 160)
-            worldColliders.push({ minX: -80, maxX: 80, minY: -2, maxY: 0, minZ: -80, maxZ: 80, type: "solid" });
+            // Main Baseplate (240 x 240)
+            worldColliders.push({ minX: -120, maxX: 120, minY: -2, maxY: 0, minZ: -120, maxZ: 120, type: "solid" });
 
             // Center Spawn Pad
             worldColliders.push({ minX: -4, maxX: 4, minY: 0, maxY: 0.4, minZ: -4, maxZ: 4, type: "solid" });
@@ -1368,6 +1402,26 @@
 
             worldColliders.push({ minX: -12, maxX: 12, minY: 12, maxY: 15, minZ: 22.5, maxZ: 25.5, type: "solid" });
             landmarks.push({ x: 0, y: 13.5, z: 24, w: 24, h: 3, d: 3, color: "#facc15", type: "solid" });
+
+            // Small house with doorway, walls, roof, windows, and porch
+            const hx=34, hz=30;
+            // Wall segments below form the house boundary (keep interior walkable).
+            // Remove the doorway area from the collision footprint; wall segments are represented individually
+            worldColliders.push({minX:hx-10,maxX:hx-2,minY:0,maxY:6,minZ:hz-8,maxZ:hz-6,type:"solid"});
+            worldColliders.push({minX:hx+2,maxX:hx+10,minY:0,maxY:6,minZ:hz-8,maxZ:hz-6,type:"solid"});
+            landmarks.push({x:hx,y:3,z:hz-8,w:20,h:6,d:1,color:"#f59e0b",type:"solid"});
+            landmarks.push({x:hx-10,y:3,z:hz,w:1,h:6,d:16,color:"#f59e0b",type:"solid"});
+            landmarks.push({x:hx+10,y:3,z:hz,w:1,h:6,d:16,color:"#f59e0b",type:"solid"});
+            landmarks.push({x:hx,y:3,z:hz+8,w:20,h:6,d:1,color:"#f59e0b",type:"solid"});
+            landmarks.push({x:hx,y:6.8,z:hz,w:22,h:1.5,d:18,color:"#b91c1c",type:"solid"});
+            // Gable roof accents, chimney, and interior floor for a more recognizable house
+            landmarks.push({x:hx-5.5,y:8.1,z:hz,w:12,h:1.1,d:19,color:"#991b1b",type:"solid"});
+            landmarks.push({x:hx+5.5,y:8.1,z:hz,w:12,h:1.1,d:19,color:"#991b1b",type:"solid"});
+            landmarks.push({x:hx+7,y:9,z:hz-5,w:2.5,h:5,d:2.5,color:"#7f1d1d",type:"solid"});
+            landmarks.push({x:hx,y:.15,z:hz,w:18,h:.3,d:14,color:"#d97706",type:"solid"});
+            landmarks.push({x:hx-6,y:3,z:hz-8.7,w:3,h:3,d:.3,color:"#38bdf8",type:"solid"});
+            landmarks.push({x:hx+6,y:3,z:hz-8.7,w:3,h:3,d:.3,color:"#38bdf8",type:"solid"});
+            landmarks.push({x:hx,y:.4,z:hz-12,w:8,h:.8,d:5,color:"#a16207",type:"solid"});
         }
 
         buildStaticWorldData();
@@ -1670,6 +1724,9 @@
                 renderer3D.setSize(window.innerWidth, window.innerHeight);
                 renderer3D.shadowMap.enabled = true;
                 renderer3D.shadowMap.type = THREE.PCFSoftShadowMap;
+                renderer3D.outputEncoding = THREE.sRGBEncoding;
+                renderer3D.toneMapping = THREE.ACESFilmicToneMapping;
+                renderer3D.toneMappingExposure = 1.08;
 
                 scene3D = new THREE.Scene();
                 scene3D.background = new THREE.Color("#7dd3fc");
@@ -1686,7 +1743,7 @@
                 dirLight.castShadow = true;
                 dirLight.shadow.mapSize.width = 1024;
                 dirLight.shadow.mapSize.height = 1024;
-                const d = 95;
+                const d = 135;
                 dirLight.shadow.camera.left = -d;
                 dirLight.shadow.camera.right = d;
                 dirLight.shadow.camera.top = d;
@@ -1700,9 +1757,9 @@
 
                 // Baseplate
                 const plateMesh = new THREE.Mesh(
-                    new THREE.BoxGeometry(160, 2, 160),
+                    new THREE.BoxGeometry(240, 2, 240),
                     new THREE.MeshStandardMaterial({
-                        map: createStudTexture("#9ca3af", 80, 80),
+                        map: createStudTexture("#9ca3af", 120, 120),
                         roughness: 0.75,
                         metalness: 0.05
                     })
@@ -1740,7 +1797,7 @@
                         new THREE.BoxGeometry(14 + Math.random() * 12, 3.2, 10 + Math.random() * 10),
                         cloudMat
                     );
-                    cloud.position.set((Math.random() - 0.5) * 230, 48 + Math.random() * 18, (Math.random() - 0.5) * 230);
+                    cloud.position.set((Math.random() - 0.5) * 280, 48 + Math.random() * 18, (Math.random() - 0.5) * 280);
                     cloudGroup3D.add(cloud);
                 }
                 scene3D.add(cloudGroup3D);
@@ -1840,23 +1897,48 @@
             ctx2D.stroke();
         }
 
-        function drawIsoCharacter(pos, colors, animState, t, yaw, camCenter) {
-            const bob = (animState === "walk" || animState === "run") ? Math.abs(Math.sin(t * 10)) * 0.25 : 0;
-            // Legs
-            drawIsoBox(pos.x, pos.y + 1.0, pos.z, 1.6, 2.0, 1.0, colors.pants, yaw, camCenter);
-            // Torso
-            drawIsoBox(pos.x, pos.y + 3.0 + bob, pos.z, 2.0, 2.0, 1.0, colors.shirt, yaw, camCenter);
-            // Head
-            drawIsoBox(pos.x, pos.y + 4.65 + bob, pos.z, 1.25, 1.2, 1.25, colors.skin, yaw, camCenter);
+        function drawIsoCharacter(pos, colors, animState, t, yaw, camCenter, characterYaw = 0) {
+            const moving = animState === "walk" || animState === "run";
+            const freq = animState === "run" ? 13 : 9.5;
+            const swing = moving ? Math.sin(t * freq) * (animState === "run" ? .62 : .42) : 0;
+            const bob = moving ? Math.abs(Math.cos(t * freq)) * .16 : Math.sin(t * 2.2) * .025;
+            const c = Math.cos(characterYaw || 0), sn = Math.sin(characterYaw || 0);
+            const part = (lx, ly, lz, w, h, d, color) => {
+                const wx = lx * c + lz * sn;
+                const wz = -lx * sn + lz * c;
+                drawIsoBox(pos.x + wx, pos.y + ly + bob, pos.z + wz, w, h, d, color, yaw, camCenter);
+            };
+            // Rear limbs first so the torso naturally sits over their joints.
+            part(-.5, 1.0, -swing * .72, .92, 1.95, .95, colors.pants);
+            part( .5, 1.0,  swing * .72, .92, 1.95, .95, colors.pants);
+            part(-1.48, 3.0, swing * .62, .78, 1.9, .82, colors.skin);
+            part( 1.48, 3.0, -swing * .62, .78, 1.9, .82, colors.skin);
+            part(0, 3.0, 0, 2.0, 2.0, 1.0, colors.shirt);
+            part(0, 4.65, 0, 1.25, 1.2, 1.25, colors.skin);
+
+            // Tiny face details make the isometric fallback read as a character,
+            // not a stack of anonymous blocks.
+            const faceX = pos.x + .62 * sn;
+            const faceZ = pos.z + .62 * c;
+            const eyeA = isoProject(faceX - .23 * c, pos.y + 4.78 + bob, faceZ + .23 * sn, camCenter, yaw);
+            const eyeB = isoProject(faceX + .23 * c, pos.y + 4.78 + bob, faceZ - .23 * sn, camCenter, yaw);
+            ctx2D.fillStyle = "#111827";
+            [eyeA, eyeB].forEach((eye) => { ctx2D.beginPath(); ctx2D.arc(eye.x, eye.y, 2.2, 0, Math.PI * 2); ctx2D.fill(); });
         }
 
         function render2DFallbackFrame(now) {
-            if (canvas2D.width !== window.innerWidth || canvas2D.height !== window.innerHeight) {
-                canvas2D.width = window.innerWidth;
-                canvas2D.height = window.innerHeight;
+            const dpr = Math.min(window.devicePixelRatio || 1, 2);
+            const targetW = Math.round(window.innerWidth * dpr);
+            const targetH = Math.round(window.innerHeight * dpr);
+            if (canvas2D.width !== targetW || canvas2D.height !== targetH) {
+                canvas2D.width = targetW;
+                canvas2D.height = targetH;
+                canvas2D.style.width = window.innerWidth + "px";
+                canvas2D.style.height = window.innerHeight + "px";
             }
-            const w = canvas2D.width;
-            const h = canvas2D.height;
+            ctx2D.setTransform(dpr, 0, 0, dpr, 0, 0);
+            const w = window.innerWidth;
+            const h = window.innerHeight;
 
             const sky = ctx2D.createLinearGradient(0, 0, 0, h);
             sky.addColorStop(0, "#1d4ed8");
@@ -1869,10 +1951,10 @@
             const camCenter = { x: physics.pos.x, z: physics.pos.z };
 
             // Baseplate floor polygon
-            const c1 = isoProject(-80, 0, -80, camCenter, yaw);
-            const c2 = isoProject(80, 0, -80, camCenter, yaw);
-            const c3 = isoProject(80, 0, 80, camCenter, yaw);
-            const c4 = isoProject(-80, 0, 80, camCenter, yaw);
+            const c1 = isoProject(-120, 0, -120, camCenter, yaw);
+            const c2 = isoProject(120, 0, -120, camCenter, yaw);
+            const c3 = isoProject(120, 0, 120, camCenter, yaw);
+            const c4 = isoProject(-120, 0, 120, camCenter, yaw);
 
             ctx2D.fillStyle = "#9ca3af";
             ctx2D.beginPath();
@@ -1915,18 +1997,19 @@
             const localProj = isoProject(physics.pos.x, physics.pos.y, physics.pos.z, camCenter, yaw);
             drawables.push({
                 depth: localProj.depth + physics.pos.y * 0.2 + 0.5,
-                fn: () => drawIsoCharacter(physics.pos, state.avatar, physics.animState, tSec, yaw, camCenter)
+                fn: () => drawIsoCharacter(physics.pos, state.avatar, physics.animState, tSec, yaw, camCenter, physics.yaw)
             });
             for (const p of state.players.values()) {
                 const rp = isoProject(p.pos.x, p.pos.y, p.pos.z, camCenter, yaw);
                 drawables.push({
                     depth: rp.depth + p.pos.y * 0.2 + 0.5,
-                    fn: () => drawIsoCharacter(p.pos, p.colors || { skin: "#facc15", shirt: "#2563eb", pants: "#65a30d" }, p.anim, tSec, yaw, camCenter)
+                    fn: () => drawIsoCharacter(p.pos, p.colors || { skin: "#facc15", shirt: "#2563eb", pants: "#65a30d" }, p.anim, tSec, yaw, camCenter, p.targetYaw || 0)
                 });
             }
 
             drawables.sort((a, b) => a.depth - b.depth);
             drawables.forEach((d) => d.fn());
+
         }
 
         // =====================================================================
@@ -2006,7 +2089,7 @@
 
                 if (roomDisplay) roomDisplay.textContent = state.roomCode;
                 if (hudStatusText) {
-                    hudStatusText.textContent = "Server Live • Code: " + state.roomCode + " (" + total + ")";
+                    hudStatusText.textContent = (this.relayOnline ? "Global • " : "Local • ") + state.roomCode + " (" + total + ")";
                 }
                 if (hudDot) {
                     hudDot.style.background = this.relayOnline ? "#4ade80" : "#38bdf8";
@@ -2017,7 +2100,7 @@
                         lobbyStatusText.textContent = "Global Relay Connected";
                     } else {
                         lobbyBadge.className = "status-badge status-local";
-                        lobbyStatusText.textContent = "Instant Server Ready";
+                        lobbyStatusText.textContent = this.bc ? "Local Tabs Ready" : "Room Created • Relay Offline";
                     }
                 }
             }
@@ -2465,19 +2548,32 @@
         }
 
         function copyTextFallback(text) {
+            let ta;
             try {
-                const ta = document.createElement("textarea");
+                ta = document.createElement("textarea");
                 ta.value = text;
                 ta.style.position = "fixed";
+                ta.style.left = "-9999px";
                 ta.style.opacity = "0";
                 document.body.appendChild(ta);
+                ta.focus();
                 ta.select();
-                document.execCommand("copy");
-                document.body.removeChild(ta);
-                return true;
+                return document.execCommand("copy");
             } catch (e) {
                 return false;
+            } finally {
+                if (ta && ta.parentNode) ta.parentNode.removeChild(ta);
             }
+        }
+
+        async function copyTextSafe(text) {
+            if (navigator.clipboard && window.isSecureContext) {
+                try {
+                    await navigator.clipboard.writeText(text);
+                    return true;
+                } catch (e) {}
+            }
+            return copyTextFallback(text);
         }
 
         function launchIntoBaseplateServer(targetRoomCode = "") {
@@ -2499,6 +2595,7 @@
                 inviteCardTitle.textContent = "Server Created • Invite Friends";
             }
 
+
             // Switch immediately to gameplay with zero waiting
             document.getElementById("lobby-screen").classList.add("hidden");
             document.getElementById("game-hud").classList.remove("hidden");
@@ -2507,6 +2604,11 @@
             state.inGame = true;
 
             networkManager.connectRoom(state.roomCode);
+
+            const startingBotCount = 3;
+            const currentBotCount = Array.from(state.players.values()).filter((p) => p.isBot).length;
+            for (let i = currentBotCount; i < startingBotCount; i++) spawnBot({ quiet: true });
+
             updateLeaderboardUI();
             appendChatMessage(
                 "System",
@@ -2533,16 +2635,22 @@
         document.getElementById("hud-copy-code-btn").addEventListener("click", () => {
             SoundFX.unlock();
             SoundFX.playClick();
-            copyTextFallback(state.roomCode);
-            inviteCardFeedback.textContent = "Copied room code [" + state.roomCode + "] to clipboard!";
+            copyTextSafe(state.roomCode).then((ok) => {
+                inviteCardFeedback.textContent = ok
+                    ? "Copied room code [" + state.roomCode + "] to clipboard!"
+                    : "Clipboard blocked. Select the room code and copy it manually.";
+            });
         });
 
         document.getElementById("hud-copy-link-btn").addEventListener("click", () => {
             SoundFX.unlock();
             SoundFX.playClick();
             const link = buildInviteShareUrl();
-            copyTextFallback("Join my Blox-ro Baseplate server! Code: " + state.roomCode + " • " + link);
-            inviteCardFeedback.textContent = "Copied invite link for room [" + state.roomCode + "]!";
+            copyTextSafe(link).then((ok) => {
+                inviteCardFeedback.textContent = ok
+                    ? "Copied invite link for room [" + state.roomCode + "]!"
+                    : "Clipboard blocked. Copy this page URL and share code " + state.roomCode + ".";
+            });
         });
 
         document.getElementById("close-invite-card-btn").addEventListener("click", () => {
@@ -2587,8 +2695,9 @@
             if (state.inGame) networkManager.connectRoom(state.roomCode);
         });
         document.getElementById("copy-server-code-btn").addEventListener("click", () => {
-            copyTextFallback(NODE_WS_SERVER_CODE);
-            hostFeedback.textContent = "Copied server.js to clipboard!";
+            copyTextSafe(NODE_WS_SERVER_CODE).then((ok) => {
+                hostFeedback.textContent = ok ? "Copied server.js to clipboard!" : "Clipboard blocked. Select the code below and copy it manually.";
+            });
         });
         document.getElementById("download-server-code-btn").addEventListener("click", () => {
             try {
@@ -2670,9 +2779,12 @@
             "Let's build together!"
         ];
 
-        function spawnBot() {
-            SoundFX.unlock();
-            SoundFX.playClick();
+        function spawnBot(options = {}) {
+            const quiet = options.quiet === true;
+            if (!quiet) {
+                SoundFX.unlock();
+                SoundFX.playClick();
+            }
             const botId = "bot_" + Math.random().toString(36).slice(2, 8);
             const name = BOT_NAMES[state.players.size % BOT_NAMES.length];
             const outfits = [
@@ -2681,8 +2793,8 @@
                 { skin: "#fde047", shirt: "#ef4444", pants: "#1f2937" }
             ];
             const colors = outfits[Math.floor(Math.random() * outfits.length)];
-            const sx = (Math.random() - 0.5) * 16;
-            const sz = (Math.random() - 0.5) * 16;
+            const sx = (Math.random() - 0.5) * 24;
+            const sz = (Math.random() - 0.5) * 24;
 
             const mesh = createR6Character3D(colors);
             if (mesh) {
@@ -2696,7 +2808,7 @@
                 colors,
                 mesh,
                 pos: { x: sx, y: 0.5, z: sz },
-                goalPos: { x: (Math.random() - 0.5) * 38, y: 0.5, z: (Math.random() - 0.5) * 38 },
+                goalPos: { x: (Math.random() - 0.5) * 60, y: 0.5, z: (Math.random() - 0.5) * 60 },
                 targetYaw: 0,
                 anim: "walk",
                 username: name,
@@ -2705,7 +2817,7 @@
                 decisionTimer: 2 + Math.random() * 3,
                 ping: 0
             });
-            appendChatMessage("System", name + " spawned.", true);
+            if (!quiet) appendChatMessage("System", name + " spawned.", true);
             updateLeaderboardUI();
         }
 
@@ -2788,9 +2900,14 @@
             }
         }
 
-        document.querySelectorAll(".hotbar-slot").forEach((btn) => {
+        document.querySelectorAll(".hotbar-slot[data-slot]").forEach((btn) => {
             btn.addEventListener("click", () => selectSlot(Number(btn.dataset.slot)));
         });
+        const emoteCycle = ["dance", "wave", "cheer"];
+        let emoteCycleIndex = 0;
+        function cycleEmote() { triggerEmote(emoteCycle[emoteCycleIndex]); emoteCycleIndex=(emoteCycleIndex+1)%emoteCycle.length; }
+        document.getElementById("emote-switcher").addEventListener("click", cycleEmote);
+
 
         document.querySelectorAll(".bcolor-btn").forEach((btn) => {
             btn.addEventListener("click", () => {
@@ -2803,9 +2920,11 @@
         });
 
         function placeSyncedBlock(x, y, z, color, broadcast = true) {
-            const gx = Math.round(x / 2) * 2;
-            const gy = Math.max(1, Math.round(y / 2) * 2);
-            const gz = Math.round(z / 2) * 2;
+            // Bricks are 4x4x2. Their centers sit at y=1,3,5... so the
+            // bottom layer rests flush on the baseplate instead of floating.
+            const gx = Math.round(x / 4) * 4;
+            const gy = Math.max(1, 1 + Math.round((y - 1) / 2) * 2);
+            const gz = Math.round(z / 4) * 4;
             const id = "blk_" + gx + "_" + gy + "_" + gz;
             if (!state.blocks.has(id)) {
                 const col = {
@@ -2840,6 +2959,11 @@
             if (!col) return;
             if (col.mesh && scene3D) {
                 scene3D.remove(col.mesh);
+                if (col.mesh.geometry) col.mesh.geometry.dispose();
+                if (col.mesh.material) {
+                    if (col.mesh.material.map) col.mesh.material.map.dispose();
+                    col.mesh.material.dispose();
+                }
                 const mIdx = clickableMeshes3D.indexOf(col.mesh);
                 if (mIdx !== -1) clickableMeshes3D.splice(mIdx, 1);
             }
@@ -2886,8 +3010,8 @@
                     placeSyncedBlock(fx, 1, fz, state.buildColor, true);
                     SoundFX.playBuild();
                 } else if (state.activeSlot === 3) {
-                    const gx = Math.round(fx / 2) * 2;
-                    const gz = Math.round(fz / 2) * 2;
+                    const gx = Math.round(fx / 4) * 4;
+                    const gz = Math.round(fz / 4) * 4;
                     const id = "blk_" + gx + "_1_" + gz;
                     if (state.blocks.has(id)) {
                         removeSyncedBlock(id, true);
@@ -3181,6 +3305,15 @@
         });
 
         const keysPressed = {};
+        function jumpPlayer() {
+            if (!state.inGame || !physics.grounded) return;
+            SoundFX.unlock();
+            physics.vel.y = 17.5;
+            physics.grounded = false;
+            state.currentEmote = null;
+            SoundFX.playJump();
+        }
+
         window.addEventListener("keydown", (e) => {
             const activeTag = document.activeElement ? document.activeElement.tagName : "";
             if (activeTag === "INPUT" || activeTag === "TEXTAREA") return;
@@ -3193,22 +3326,20 @@
             }
             keysPressed[e.code] = true;
 
-            if (e.code === "Space" && physics.grounded) {
-                SoundFX.unlock();
-                physics.vel.y = 17.5;
-                physics.grounded = false;
-                state.currentEmote = null;
-                SoundFX.playJump();
+            if (e.code === "Space") {
+                e.preventDefault();
+                if (!e.repeat) jumpPlayer();
             }
             if (e.code === "KeyR") respawnPlayer(true);
-            if (e.code === "Digit1") selectSlot(1);
-            if (e.code === "Digit2") selectSlot(2);
-            if (e.code === "Digit3") selectSlot(3);
-            if (e.code === "Digit4") selectSlot(4);
-            if (e.code === "Digit5") selectSlot(5);
-            if (e.code === "Digit6") selectSlot(6);
+            if (e.key === ".") { e.preventDefault(); cycleEmote(); }
         });
         window.addEventListener("keyup", (e) => { keysPressed[e.code] = false; });
+        window.addEventListener("blur", () => {
+            Object.keys(keysPressed).forEach((key) => { keysPressed[key] = false; });
+            state.mobileSprinting = false;
+            const sprintBtn = document.getElementById("mobile-sprint-btn");
+            if (sprintBtn) { sprintBtn.classList.remove("active"); sprintBtn.setAttribute("aria-pressed", "false"); }
+        });
 
         // Touch Joystick
         const joyInput = { x: 0, z: 0 };
@@ -3256,16 +3387,45 @@
             }
         });
 
-        document.getElementById("mobile-jump-btn").addEventListener("touchstart", (e) => {
+        document.getElementById("mobile-jump-btn").addEventListener("pointerdown", (e) => {
             e.preventDefault();
-            if (physics.grounded) {
-                SoundFX.unlock();
-                physics.vel.y = 17.5;
-                physics.grounded = false;
-                state.currentEmote = null;
-                SoundFX.playJump();
-            }
-        }, { passive: false });
+            jumpPlayer();
+        });
+
+        const mobileSprintBtn = document.getElementById("mobile-sprint-btn");
+        const setMobileSprint = (active) => {
+            state.mobileSprinting = active;
+            mobileSprintBtn.classList.toggle("active", active);
+            mobileSprintBtn.setAttribute("aria-pressed", String(active));
+        };
+        mobileSprintBtn.addEventListener("pointerdown", (e) => {
+            e.preventDefault();
+            mobileSprintBtn.setPointerCapture?.(e.pointerId);
+            setMobileSprint(true);
+        });
+        ["pointerup", "pointercancel", "lostpointercapture"].forEach((eventName) => {
+            mobileSprintBtn.addEventListener(eventName, () => setMobileSprint(false));
+        });
+
+
+        function leaveGame() {
+            state.inGame=false;
+            state.mobileSprinting=false;
+            keysPressed && Object.keys(keysPressed).forEach(k=>keysPressed[k]=false);
+            try { networkManager.disconnectAll(); } catch(e) {}
+            document.getElementById("game-hud").classList.add("hidden");
+            document.getElementById("lobby-screen").classList.remove("hidden");
+            document.getElementById("invite-card").classList.add("hidden");
+        }
+        document.getElementById("leave-game-btn").addEventListener("click", leaveGame);
+        document.getElementById("mobile-leave-btn").addEventListener("click", leaveGame);
+        document.getElementById("mobile-build-btn").addEventListener("click",()=>selectSlot(2));
+        document.getElementById("mobile-delete-btn").addEventListener("click",()=>selectSlot(3));
+        document.getElementById("mobile-emote-btn").addEventListener("click",cycleEmote);
+        document.getElementById("mobile-chat-btn").addEventListener("click",()=>chatPanel.classList.toggle("hidden"));
+        document.getElementById("mobile-respawn-btn").addEventListener("click",()=>respawnPlayer(true));
+        document.getElementById("mobile-menu-btn").addEventListener("click",()=>document.getElementById("menu-btn").click());
+        document.getElementById("mobile-color-btn").addEventListener("click",()=>{ if(state.activeSlot!==2) selectSlot(2); buildColorBar.classList.toggle("hidden"); });
 
         // =====================================================================
         // 14. PHYSICS, AI BOTS & MAIN RENDER LOOP
@@ -3283,9 +3443,11 @@
                 fwd -= joyInput.z;
             }
 
-            const sprinting = Boolean(keysPressed["ShiftLeft"] || keysPressed["ShiftRight"]);
-            const speed = sprinting ? 21 : 14.5;
+            const sprinting = Boolean(keysPressed["ShiftLeft"] || keysPressed["ShiftRight"] || state.mobileSprinting);
+            const speed = sprinting ? 17.5 : 11.5;
             const len = Math.hypot(fwd, right);
+            let targetVx = 0;
+            let targetVz = 0;
 
             if (len > 0.01) {
                 state.currentEmote = null;
@@ -3294,21 +3456,21 @@
                 const sinY = Math.sin(camState.yaw);
                 const cosY = Math.cos(camState.yaw);
 
-                const vx = (-sinY * nf + cosY * nr) * speed;
-                const vz = (-cosY * nf - sinY * nr) * speed;
-                physics.vel.x = vx;
-                physics.vel.z = vz;
+                targetVx = (-sinY * nf + cosY * nr) * speed;
+                targetVz = (-cosY * nf - sinY * nr) * speed;
 
-                const targetYaw = Math.atan2(vx, vz);
+                const targetYaw = Math.atan2(targetVx, targetVz);
                 let diff = targetYaw - physics.yaw;
                 while (diff < -Math.PI) diff += Math.PI * 2;
                 while (diff > Math.PI) diff -= Math.PI * 2;
                 physics.yaw += diff * Math.min(1, dt * 14);
-            } else {
-                const damp = Math.pow(0.001, dt);
-                physics.vel.x *= damp;
-                physics.vel.z *= damp;
             }
+
+            // Ease into motion and brake smoothly instead of snapping to full speed.
+            const horizontalResponse = len > 0.01 ? (sprinting ? 15 : 12) : (physics.grounded ? 10 : 2.2);
+            const blendVelocity = Math.min(1, dt * horizontalResponse);
+            physics.vel.x += (targetVx - physics.vel.x) * blendVelocity;
+            physics.vel.z += (targetVz - physics.vel.z) * blendVelocity;
 
             physics.vel.y -= 44 * dt;
 
@@ -3404,8 +3566,8 @@
                             p.goalPos.z = p.pos.z;
                         } else {
                             p.anim = "walk";
-                            p.goalPos.x = (Math.random() - 0.5) * 42;
-                            p.goalPos.z = (Math.random() - 0.5) * 42;
+                            p.goalPos.x = (Math.random() - 0.5) * 60;
+                            p.goalPos.z = (Math.random() - 0.5) * 60;
                         }
                     }
                     if (p.anim === "walk") {
@@ -3454,6 +3616,11 @@
                 pt.mesh.scale.setScalar(Math.max(0.01, pt.life));
                 if (pt.life <= 0) {
                     scene3D.remove(pt.mesh);
+                    if (pt.mesh.geometry) pt.mesh.geometry.dispose();
+                    if (pt.mesh.material) {
+                        if (Array.isArray(pt.mesh.material)) pt.mesh.material.forEach((m) => m.dispose());
+                        else pt.mesh.material.dispose();
+                    }
                     state.particles.splice(i, 1);
                 }
             }
